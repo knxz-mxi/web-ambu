@@ -1,0 +1,37 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Student {
+  id           Int           @id @default(autoincrement())
+  no           Int           @unique
+  fullName     String
+  nickname     String
+  gender       String?       // "L" atau "P"
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  date          DateTime @default(now())
+  category      String   // "KAS_MASUK", "THR_MASUK", "PENGELUARAN", "THR_KELUAR"
+  type          String   // "IN" atau "OUT"
+  studentId     Int?
+  studentName   String?
+  description   String   // Keterangan transaksi
+  amount        Float    // Nominal uang
+  qty           Int?     // Rincian produk Qty
+  unitPrice     Float?   // Rincian produk Harga Satuan
+  paymentMethod String?  // Mandiri, BCA, BRI, Tunai, ShopeePay
+  pic           String?  // Nama PIC (misal: "Mama Bia", "Ibun Cheryl")
+  note          String?  // Catatan rekening / nomor bukti
+  createdAt     DateTime @default(now())
+
+  student       Student? @relation(fields: [studentId], references: [id])
+}
