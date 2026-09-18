@@ -27,14 +27,19 @@ import {
   Eye,
   ChevronRight,
   FileSpreadsheet,
+  Download,
+  LogIn,
+  LogOut,
+  UserCheck,
+  Lock,
   Heart,
-  Smile,
-  ShieldCheck
+  ShieldAlert,
+  HelpCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 import { STUDENTS_KELAS_4B, StudentItem } from '@/lib/students';
-import { ODS_CASH_REFERENCE, ODS_THR_REFERENCE, OdsRow } from '@/lib/odsReferenceData';
 
 interface TransactionItem {
   id: string;
@@ -58,16 +63,23 @@ export default function HomePage() {
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Active navigation tab: 'dashboard' | 'ledger' | 'reference_ods' | 'info'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'reference_ods' | 'info'>('dashboard');
+  // User session state: role & student
+  // role: 'GUEST' | 'MAMA' | 'BENDAHARA'
+  const [userRole, setUserRole] = useState<'GUEST' | 'MAMA' | 'BENDAHARA'>('GUEST');
+  const [currentMamaStudent, setCurrentMamaStudent] = useState<StudentItem | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginSelectedStudentId, setLoginSelectedStudentId] = useState('');
+  const [loginPin, setLoginPin] = useState('');
+  const [loginRoleType, setLoginRoleType] = useState<'MAMA' | 'BENDAHARA'>('MAMA');
+  const [loginError, setLoginError] = useState('');
+
+  // Active navigation tab: 'dashboard' | 'ledger' | 'info'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'info'>('dashboard');
 
   // Search & Filters
   const [studentSearch, setStudentSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<'ALL' | 'KAS_LUNAS' | 'KAS_BELUM' | 'THR_LUNAS' | 'THR_BELUM'>('ALL');
   const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<'ALL' | 'KAS_MASUK' | 'THR_MASUK' | 'PENGELUARAN'>('ALL');
-
-  // ODS Reference Tab
-  const [odsSheetTab, setOdsSheetTab] = useState<'cash' | 'thr'>('cash');
 
   // Modals
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -103,12 +115,28 @@ export default function HomePage() {
     note: 'Struk / Bukti Terlampir',
   });
 
-  // Load Boomer mode preference
+  // Load Boomer mode & Saved Login from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('ambu_boomer_mode');
-    if (saved === 'true') {
+    const savedBoomer = localStorage.getItem('ambu_boomer_mode');
+    if (savedBoomer === 'true') {
       setIsBoomerMode(true);
       document.body.classList.add('mode-boomer');
+    }
+
+    const savedRole = localStorage.getItem('ambu_user_role');
+    const savedStudentId = localStorage.getItem('ambu_student_id');
+
+    if (savedRole === 'BENDAHARA') {
+      setUserRole('BENDAHARA');
+    } else if (savedRole === 'MAMA' && savedStudentId) {
+      const found = STUDENTS_KELAS_4B.find((s) => String(s.id) === savedStudentId);
+      if (found) {
+        setUserRole('MAMA');
+        setCurrentMamaStudent(found);
+      }
+    } else {
+      // First time visitor: show welcoming login modal gently
+      setIsLoginModalOpen(true);
     }
   }, []);
 
@@ -150,6 +178,56 @@ export default function HomePage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Handle Login
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    // PIN sementara: default "4B" atau "1234"
+    const validPins = ['4B', '4b', '1234', ''];
+
+    if (loginRoleType === 'BENDAHARA') {
+      if (loginPin.trim() === '4B' || loginPin.trim() === '4b' || loginPin.trim() === 'bendahara' || loginPin.trim() === '1234') {
+        setUserRole('BENDAHARA');
+        setCurrentMamaStudent(null);
+        localStorage.setItem('ambu_user_role', 'BENDAHARA');
+        localStorage.removeItem('ambu_student_id');
+        setIsLoginModalOpen(false);
+        confetti({ particleCount: 60, spread: 60 });
+      } else {
+        setLoginError('Password pengurus salah. Gunakan kata sandi sementara: 4B');
+      }
+      return;
+    }
+
+    // Login as Mama
+    if (!loginSelectedStudentId) {
+      setLoginError('Silakan sentuh dan pilih nama ananda Bunda terlebih dahulu.');
+      return;
+    }
+
+    const st = students.find((s) => String(s.id) === String(loginSelectedStudentId));
+    if (!st) {
+      setLoginError('Data ananda tidak ditemukan.');
+      return;
+    }
+
+    setUserRole('MAMA');
+    setCurrentMamaStudent(st);
+    localStorage.setItem('ambu_user_role', 'MAMA');
+    localStorage.setItem('ambu_student_id', String(st.id));
+    setIsLoginModalOpen(false);
+    confetti({ particleCount: 70, spread: 60 });
+  };
+
+  const handleLogout = () => {
+    setUserRole('GUEST');
+    setCurrentMamaStudent(null);
+    localStorage.removeItem('ambu_user_role');
+    localStorage.removeItem('ambu_student_id');
+    setIsLoginModalOpen(true);
+  };
 
   // Compute Balances
   const stats = useMemo(() => {
@@ -203,6 +281,12 @@ export default function HomePage() {
       };
     });
   }, [students, transactions]);
+
+  // Current logged in Mama's child status
+  const myChildStatus = useMemo(() => {
+    if (!currentMamaStudent) return null;
+    return studentPaymentStatus.find((s) => s.id === currentMamaStudent.id) || null;
+  }, [currentMamaStudent, studentPaymentStatus]);
 
   // Filtered Students
   const filteredStudents = useMemo(() => {
@@ -365,6 +449,49 @@ export default function HomePage() {
     }
   };
 
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    try {
+      // 1. Sheet Buku Kas
+      const kasData = sortedTransactionsWithBalance.map((tx) => ({
+        'No.': tx.rowNo,
+        'Tanggal': tx.date,
+        'Keterangan Transaksi': tx.description,
+        'Qty': tx.qty || '',
+        'Harga Satuan (Rp)': tx.unitPrice || '',
+        'Uang Masuk (Rp)': tx.type === 'IN' ? tx.amount : 0,
+        'Uang Keluar (Rp)': tx.type === 'OUT' ? tx.amount : 0,
+        'Saldo Berjalan (Rp)': tx.runningBalance,
+        'PIC / Pengurus': tx.pic || 'Mama Bia',
+        'Metode Bayar': tx.paymentMethod || '',
+        'Catatan / Rekening': tx.note || '',
+      }));
+
+      // 2. Sheet Rekap Murid
+      const muridData = studentPaymentStatus.map((s) => ({
+        'No. Absen': s.no,
+        'Nama Lengkap': s.fullName,
+        'Nama Panggilan': s.nickname,
+        'Total Kas Dibayar (Rp)': s.totalKasPaid,
+        'Status Kas': s.kasLunas ? 'LUNAS' : 'BELUM',
+        'Total THR Dibayar (Rp)': s.totalThrPaid,
+        'Status THR': s.thrLunas ? 'LUNAS' : 'BELUM',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const wsKas = XLSX.utils.json_to_sheet(kasData);
+      const wsMurid = XLSX.utils.json_to_sheet(muridData);
+
+      XLSX.utils.book_append_sheet(wb, wsKas, 'Buku Kas 4B');
+      XLSX.utils.book_append_sheet(wb, wsMurid, 'Status 25 Murid');
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `Laporan_Kas_Kelas_4B_${dateStr}.xlsx`);
+    } catch (err: any) {
+      alert('Gagal mengekspor Excel: ' + err.message);
+    }
+  };
+
   // Generate WhatsApp Message
   const waReportText = useMemo(() => {
     const todayStr = new Date().toLocaleDateString('id-ID', {
@@ -426,7 +553,6 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
     setTimeout(() => setCopiedRek(false), 2500);
   };
 
-  // Color generator for student initial avatars
   const getAvatarBg = (no: number) => {
     const colors = [
       'bg-gradient-to-br from-pink-50 to-pink-100 text-pink-700 border-pink-200',
@@ -452,81 +578,181 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
       {/* TOP HEADER */}
       <header className="top-header no-print">
         <div className="container-app flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <motion.div
               whileHover={{ rotate: 10, scale: 1.05 }}
-              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-teal-700/25 border-2 border-white"
+              className="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center text-lg md:text-xl font-black shadow-lg shadow-teal-700/25 border-2 border-white"
             >
               4B
             </motion.div>
             <div>
-              <h1 className="text-base md:text-xl font-black text-slate-900 leading-tight flex items-center gap-1.5">
+              <h1 className="text-sm md:text-lg font-black text-slate-900 leading-tight flex items-center gap-1">
                 Kas & THR Kelas 4B <span className="inline-block animate-bounce">🌸</span>
               </h1>
-              <p className="text-[11px] md:text-xs text-slate-500 font-bold">
-                Tahun Ajaran 2026–2027 • Pegangan Mama & Pengurus
+              <p className="text-[10px] md:text-xs text-slate-500 font-bold">
+                Tahun Ajaran 2026–2027 • Pegangan Mama
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            {/* User Login Indicator */}
+            {userRole === 'MAMA' && currentMamaStudent ? (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsLoginModalOpen(true)}
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1"
+                title="Klik untuk ganti nama anak / akun"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="truncate max-w-[90px] md:max-w-none">
+                  Mama {currentMamaStudent.nickname}
+                </span>
+              </motion.button>
+            ) : userRole === 'BENDAHARA' ? (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsLoginModalOpen(true)}
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
+                <span>Pengurus</span>
+              </motion.button>
+            ) : (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsLoginModalOpen(true)}
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1"
+              >
+                <LogIn className="w-3.5 h-3.5 text-teal-700" />
+                <span>Pilih Mama</span>
+              </motion.button>
+            )}
+
             {/* Boomer Mode Toggle */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={toggleBoomerMode}
-              className={`px-3 py-2 md:px-3.5 md:py-2.5 rounded-xl text-xs md:text-sm font-black flex items-center gap-1.5 transition-all border ${
+              className={`px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black flex items-center gap-1 border ${
                 isBoomerMode
-                  ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-white text-slate-700 border-slate-300'
               }`}
-              title="Perbesar huruf agar mudah dibaca"
+              title="Perbesar teks"
             >
-              <Eye className="w-4 h-4 text-amber-600" />
-              <span className="hidden sm:inline">Huruf Besar:</span>
-              <span>{isBoomerMode ? 'Aktif 🔍' : 'Normal'}</span>
+              <Eye className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Huruf:</span>
+              <span>{isBoomerMode ? 'Besar' : 'Normal'}</span>
             </motion.button>
 
-            {/* WA Button Header */}
+            {/* Export Excel Button */}
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setIsWaModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-xl text-xs md:text-sm font-black flex items-center gap-1.5 shadow-md shadow-emerald-700/20"
+              whileTap={{ scale: 0.95 }}
+              onClick={handleExportExcel}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black flex items-center gap-1 shadow-sm"
+              title="Unduh Laporan Excel (.xlsx)"
             >
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">Kirim ke WA</span>
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Export Excel</span>
             </motion.button>
           </div>
         </div>
       </header>
 
       {/* MAIN CONTAINER */}
-      <main className="container-app py-4 space-y-5">
+      <main className="container-app py-3 md:py-4 space-y-4">
+
+        {/* WELCOME BANNER KHUSUS MAMA / IBU-IBU */}
+        {userRole === 'MAMA' && currentMamaStudent && myChildStatus ? (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-amber-50 via-teal-50 to-emerald-50 rounded-2xl p-3.5 md:p-4 border-2 border-teal-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+                🌸
+              </div>
+              <div>
+                <div className="text-xs font-black text-teal-800 uppercase tracking-wide">
+                  Selamat Datang, Bunda / Mama {currentMamaStudent.nickname}! 💖
+                </div>
+                <div className="text-xs md:text-sm text-slate-600 font-semibold mt-0.5">
+                  Ananda: <strong>{currentMamaStudent.fullName}</strong> (No. Absen {currentMamaStudent.no})
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`badge ${myChildStatus.kasLunas ? 'badge-success' : 'badge-warning'} text-[11px]`}>
+                    Kas: {myChildStatus.kasLunas ? '✅ Lunas' : '⏳ Belum Lunas'}
+                  </span>
+                  <span className={`badge ${myChildStatus.thrLunas ? 'badge-success' : 'badge-warning'} text-[11px]`}>
+                    THR: {myChildStatus.thrLunas ? '✅ Lunas' : '⏳ Belum Lunas'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleOpenDepositForStudent(currentMamaStudent, 'KAS_MASUK')}
+                className="flex-1 sm:flex-initial bg-teal-600 hover:bg-teal-700 text-white font-black px-4 py-2.5 rounded-xl text-xs md:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-teal-700/20"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Setor untuk {currentMamaStudent.nickname}</span>
+              </motion.button>
+              <button
+                onClick={handleLogout}
+                className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-2 rounded-lg"
+                title="Bukan Mama ini? Klik untuk ganti"
+              >
+                Ganti
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-200 shadow-sm flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2.5 text-xs md:text-sm text-slate-700 font-semibold">
+              <span className="text-lg">👋</span>
+              <span>
+                Bunda belum memilih nama ananda?{' '}
+                <strong className="text-teal-700">Pilih sekali agar saat setor langsung otomatis!</strong>
+              </span>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsLoginModalOpen(true)}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-xl text-xs font-black shrink-0"
+            >
+              Pilih Nama Anak
+            </motion.button>
+          </motion.div>
+        )}
         
-        {/* HERO CARD COMPACT & GORGEOUS */}
+        {/* HERO CARD COMPACT */}
         <motion.section
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="bg-gradient-to-br from-teal-900 via-teal-800 to-emerald-800 text-white rounded-3xl p-4 md:p-6 shadow-xl shadow-teal-950/15 relative overflow-hidden border border-teal-700/40"
+          className="bg-gradient-to-br from-teal-900 via-teal-800 to-emerald-800 text-white rounded-3xl p-4 md:p-5 shadow-xl shadow-teal-950/15 relative overflow-hidden border border-teal-700/40"
         >
-          {/* Subtle floral background pattern */}
-          <div className="absolute right-0 top-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
-
-          <div className="relative z-10 space-y-4">
+          <div className="relative z-10 space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-teal-100 text-[11px] font-bold backdrop-blur-md border border-white/20">
                   <span className="live-dot"></span>
-                  Kas Kelas Aktif & Transparan
+                  Laporan Transparan Kelas 4B
                 </div>
-                <h2 className="text-xl md:text-2xl font-black mt-1.5 tracking-tight flex items-center gap-2">
-                  Halo Bunda & Mama! 🌸
+                <h2 className="text-lg md:text-2xl font-black mt-1 tracking-tight">
+                  Buku Kas & Uang THR Murid 🌸
                 </h2>
               </div>
 
-              {/* SISA SALDO KOTAK EMAS */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/20 shadow-inner flex items-center justify-between sm:flex-col sm:items-start sm:min-w-[210px]">
+              {/* SISA SALDO KOTAK */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2.5 border border-white/20 shadow-inner flex items-center justify-between sm:flex-col sm:items-start sm:min-w-[200px]">
                 <div className="text-[11px] font-bold text-teal-200 uppercase tracking-wider">
                   Sisa Saldo Kas
                 </div>
@@ -536,11 +762,11 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               </div>
             </div>
 
-            {/* 4 MINI STATS COMPACT GRID */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {/* 4 MINI STATS GRID */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/10">
                 <div className="text-[11px] text-teal-200 font-bold flex items-center gap-1">
-                  <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-300" /> Masuk
+                  <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-300" /> Kas Masuk
                 </div>
                 <div className="text-sm md:text-base font-black text-white mt-0.5 truncate">
                   Rp {stats.totalKasMasuk.toLocaleString('id-ID')}
@@ -549,7 +775,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/10">
                 <div className="text-[11px] text-teal-200 font-bold flex items-center gap-1">
-                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-300" /> Keluar
+                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-300" /> Kas Keluar
                 </div>
                 <div className="text-sm md:text-base font-black text-white mt-0.5 truncate">
                   Rp {stats.totalKasKeluar.toLocaleString('id-ID')}
@@ -575,67 +801,73 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               </div>
             </div>
 
-            {/* TOMBOL UTAMA EMAS PULSING */}
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+            {/* TOMBOL UTAMA PULSING */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-0.5">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
                   setDepositForm({
-                    studentId: '',
+                    studentId: currentMamaStudent ? String(currentMamaStudent.id) : '',
                     category: 'KAS_MASUK',
                     amount: 200000,
                     date: new Date().toISOString().split('T')[0],
                     paymentMethod: 'Transfer Mandiri',
-                    note: '',
-                    customStudentName: '',
+                    note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
+                    customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
                   });
                   setIsDepositModalOpen(true);
                 }}
-                className="btn-golden-glow flex-1 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-teal-950 font-black px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2.5 text-base md:text-lg border-2 border-white/60"
+                className="btn-golden-glow flex-1 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-teal-950 font-black px-4 py-3 md:py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm md:text-base border-2 border-white/60"
               >
                 <PlusCircle className="w-5 h-5 text-teal-950 stroke-[2.5]" />
-                <span>+ KLIK DI SINI UNTUK SETOR KAS / THR</span>
+                <span>
+                  {currentMamaStudent
+                    ? `+ SETOR KAS UNTUK ${currentMamaStudent.nickname.toUpperCase()}`
+                    : '+ KLIK DI SINI UNTUK SETOR KAS / THR'}
+                </span>
               </motion.button>
 
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setExpenseForm({
-                    categoryType: 'PENGELUARAN',
-                    expenseCategory: 'Tanda Kasih Sakit/Duka',
-                    description: '',
-                    qty: 1,
-                    unitPrice: 150000,
-                    amount: 150000,
-                    date: new Date().toISOString().split('T')[0],
-                    pic: 'Mama Bia (Bendahara)',
-                    note: 'Struk / Bukti Terlampir',
-                  });
-                  setIsExpenseModalOpen(true);
-                }}
-                className="bg-rose-600/90 hover:bg-rose-600 text-white font-bold px-4 py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm md:text-base border border-rose-400/30 shadow-md transition-all"
-              >
-                <MinusCircle className="w-4 h-4" />
-                <span>- Catat Pengeluaran</span>
-              </motion.button>
+              {userRole === 'BENDAHARA' && (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setExpenseForm({
+                      categoryType: 'PENGELUARAN',
+                      expenseCategory: 'Tanda Kasih Sakit/Duka',
+                      description: '',
+                      qty: 1,
+                      unitPrice: 150000,
+                      amount: 150000,
+                      date: new Date().toISOString().split('T')[0],
+                      pic: 'Mama Bia (Bendahara)',
+                      note: 'Struk / Bukti Terlampir',
+                    });
+                    setIsExpenseModalOpen(true);
+                  }}
+                  className="bg-rose-600/90 hover:bg-rose-600 text-white font-bold px-4 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs md:text-sm border border-rose-400/30 shadow-md"
+                >
+                  <MinusCircle className="w-4 h-4" />
+                  <span>- Catat Pengeluaran</span>
+                </motion.button>
+              )}
             </div>
           </div>
         </motion.section>
 
-        {/* REKENING MANDIRI CARD (INTERACTIVE WITH ANIMATED COPY) */}
+        {/* REKENING MANDIRI CARD */}
         <motion.section
           whileHover={{ y: -2 }}
-          className="bg-white rounded-2xl p-3.5 md:p-4 border-2 border-teal-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5"
+          className="bg-white rounded-2xl p-3 md:p-3.5 border-2 border-teal-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5"
         >
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold shrink-0">
-              <CreditCard className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold shrink-0">
+              <CreditCard className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Rekening Kas & THR (Mandiri)
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Rekening Kas & THR (Bank Mandiri)
               </div>
-              <div className="text-base md:text-lg font-black text-slate-900 font-mono tracking-wider truncate">
+              <div className="text-sm md:text-base font-black text-slate-900 font-mono tracking-wider truncate">
                 1270004638738 <span className="text-xs font-sans font-semibold text-teal-800">a/n Naraya (Mama Bia)</span>
               </div>
             </div>
@@ -644,7 +876,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={copyRekening}
-            className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+            className={`w-full sm:w-auto px-3.5 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm ${
               copiedRek
                 ? 'bg-emerald-600 text-white'
                 : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200'
@@ -652,11 +884,11 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           >
             {copiedRek ? (
               <>
-                <Check className="w-4 h-4 stroke-[3]" /> Tersalin!
+                <Check className="w-3.5 h-3.5 stroke-[3]" /> Tersalin!
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4" /> Salin No. Rek
+                <Copy className="w-3.5 h-3.5" /> Salin No. Rekening
               </>
             )}
           </motion.button>
@@ -667,9 +899,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none w-full">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activeTab === 'dashboard'
-                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20 scale-100'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
@@ -679,9 +911,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
             <button
               onClick={() => setActiveTab('ledger')}
-              className={`px-4 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activeTab === 'ledger'
-                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20 scale-100'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
@@ -690,27 +922,23 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
             </button>
 
             <button
-              onClick={() => setActiveTab('reference_ods')}
-              className={`px-4 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
-                activeTab === 'reference_ods'
-                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20 scale-100'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Arsip Acuan ODS</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('info')}
-              className={`px-4 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activeTab === 'info'
-                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20 scale-100'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
               <Info className="w-4 h-4" />
               <span>Panduan</span>
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="ml-auto px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm whitespace-nowrap"
+            >
+              <Download className="w-4 h-4" />
+              <span>Unduh Excel (.xlsx)</span>
             </button>
           </div>
         </section>
@@ -720,26 +948,26 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-3.5"
+            className="space-y-3"
           >
-            {/* Search & Status Filters */}
-            <div className="bg-white p-3.5 md:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
+            {/* Search & Filters */}
+            <div className="bg-white p-3 md:p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Ketik nama ananda (misal: Afraz, Queen, Sakha, Fathia...)"
+                  placeholder="Ketik nama anak Bunda (misal: Afraz, Queen, Sakha, Fathia...)"
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-teal-600 font-bold text-slate-900 text-sm placeholder:font-medium placeholder:text-slate-400"
+                  className="w-full pl-9 pr-4 py-2 rounded-xl border-2 border-slate-200 focus:border-teal-600 font-bold text-slate-900 text-xs md:text-sm placeholder:font-medium placeholder:text-slate-400"
                 />
               </div>
 
-              {/* Filter Chips */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {/* Status Filters */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                 <button
                   onClick={() => setStudentFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
                     studentFilter === 'ALL'
                       ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -749,30 +977,30 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </button>
                 <button
                   onClick={() => setStudentFilter('KAS_LUNAS')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
                     studentFilter === 'KAS_LUNAS'
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                   }`}
                 >
                   Kas Lunas ({studentPaymentStatus.filter((s) => s.kasLunas).length})
                 </button>
                 <button
                   onClick={() => setStudentFilter('KAS_BELUM')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
                     studentFilter === 'KAS_BELUM'
                       ? 'bg-amber-600 text-white'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200'
                   }`}
                 >
                   Kas Belum ({studentPaymentStatus.filter((s) => !s.kasLunas).length})
                 </button>
                 <button
                   onClick={() => setStudentFilter('THR_LUNAS')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
                     studentFilter === 'THR_LUNAS'
                       ? 'bg-teal-600 text-white'
-                      : 'bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200'
+                      : 'bg-teal-50 text-teal-800 border border-teal-200'
                   }`}
                 >
                   THR Lunas ({studentPaymentStatus.filter((s) => s.thrLunas).length})
@@ -780,102 +1008,108 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               </div>
             </div>
 
-            {/* List 25 Murid Cards with Animations */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredStudents.map((s, idx) => (
-                <motion.div
-                  key={s.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: Math.min(idx * 0.02, 0.3) }}
-                  className="card-hover-fx bg-white rounded-2xl p-3.5 border-2 border-slate-200 shadow-sm flex flex-col justify-between space-y-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base border shrink-0 ${getAvatarBg(
-                        s.no
-                      )}`}
-                    >
-                      {s.no}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-black text-slate-900 text-base truncate">
-                          {s.nickname}
-                        </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold shrink-0">
-                          #{s.no}
-                        </span>
+            {/* List 25 Murid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {filteredStudents.map((s, idx) => {
+                const isMyChild = currentMamaStudent?.id === s.id;
+                return (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: Math.min(idx * 0.02, 0.25) }}
+                    className={`card-hover-fx bg-white rounded-2xl p-3 border-2 shadow-sm flex flex-col justify-between space-y-2.5 ${
+                      isMyChild ? 'border-teal-500 ring-2 ring-teal-300/40 bg-teal-50/20' : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm border shrink-0 ${getAvatarBg(
+                          s.no
+                        )}`}
+                      >
+                        {s.no}
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-                        {s.fullName}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Pills */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Kas Rutin
-                      </div>
-                      <div className="mt-0.5 flex items-center justify-between">
-                        {s.kasLunas ? (
-                          <span className="badge badge-success text-[11px] py-0.5">
-                            <CheckCircle2 className="w-3 h-3" /> Lunas
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-black text-slate-900 text-sm md:text-base truncate flex items-center gap-1">
+                            {s.nickname}
+                            {isMyChild && <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.2 rounded-full font-bold">Anak Bunda</span>}
                           </span>
-                        ) : (
-                          <span className="badge badge-warning text-[11px] py-0.5">
-                            <Clock className="w-3 h-3" /> Belum
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold shrink-0">
+                            #{s.no}
                           </span>
-                        )}
-                        <span className="text-xs font-black text-slate-700">
-                          {s.totalKasPaid > 0 ? `Rp ${(s.totalKasPaid / 1000).toFixed(0)}k` : 'Rp 0'}
-                        </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium truncate">
+                          {s.fullName}
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Uang THR
+                    {/* Status Pills */}
+                    <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                      <div>
+                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                          Kas Rutin
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between">
+                          {s.kasLunas ? (
+                            <span className="badge badge-success text-[10px] py-0.5 px-1.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Lunas
+                            </span>
+                          ) : (
+                            <span className="badge badge-warning text-[10px] py-0.5 px-1.5">
+                              <Clock className="w-2.5 h-2.5" /> Belum
+                            </span>
+                          )}
+                          <span className="text-[11px] font-black text-slate-700">
+                            {s.totalKasPaid > 0 ? `Rp ${(s.totalKasPaid / 1000).toFixed(0)}k` : 'Rp 0'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="mt-0.5 flex items-center justify-between">
-                        {s.thrLunas ? (
-                          <span className="badge badge-success text-[11px] py-0.5">
-                            <CheckCircle2 className="w-3 h-3" /> Lunas
+
+                      <div>
+                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                          Uang THR
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between">
+                          {s.thrLunas ? (
+                            <span className="badge badge-success text-[10px] py-0.5 px-1.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Lunas
+                            </span>
+                          ) : (
+                            <span className="badge badge-warning text-[10px] py-0.5 px-1.5">
+                              <Clock className="w-2.5 h-2.5" /> Belum
+                            </span>
+                          )}
+                          <span className="text-[11px] font-black text-slate-700">
+                            {s.totalThrPaid > 0 ? `Rp ${(s.totalThrPaid / 1000).toFixed(0)}k` : 'Rp 0'}
                           </span>
-                        ) : (
-                          <span className="badge badge-warning text-[11px] py-0.5">
-                            <Clock className="w-3 h-3" /> Belum
-                          </span>
-                        )}
-                        <span className="text-xs font-black text-slate-700">
-                          {s.totalThrPaid > 0 ? `Rp ${(s.totalThrPaid / 1000).toFixed(0)}k` : 'Rp 0'}
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2 pt-0.5">
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 shadow-sm transition-all"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" /> Setor Kas
-                    </motion.button>
+                    {/* Quick Setor Buttons */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                      >
+                        <PlusCircle className="w-3 h-3" /> Setor Kas
+                      </motion.button>
 
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleOpenDepositForStudent(s, 'THR_MASUK')}
-                      className="bg-amber-500 hover:bg-amber-600 text-amber-950 py-2 px-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 shadow-sm transition-all"
-                    >
-                      <Gift className="w-3.5 h-3.5" /> Setor THR
-                    </motion.button>
-                  </div>
-                </motion.div>
-              ))}
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleOpenDepositForStudent(s, 'THR_MASUK')}
+                        className="bg-amber-500 hover:bg-amber-600 text-amber-950 py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                      >
+                        <Gift className="w-3 h-3" /> Setor THR
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.section>
         )}
@@ -885,15 +1119,15 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-3.5"
+            className="space-y-3"
           >
-            <div className="bg-white p-3.5 md:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="font-black text-slate-900 text-base md:text-lg">
-                  Buku Kas & Pengeluaran Kelas 4B (Aktif) 📖
+                <h3 className="font-black text-slate-900 text-sm md:text-base">
+                  Buku Kas & Pengeluaran Kelas 4B 📖
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Format tabel pembukuan resmi sesuai acuan format ODS (No, Tanggal, Rincian, Pemasukan, Pengeluaran, Saldo).
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Format pembukuan resmi dengan saldo berjalan otomatis.
                 </p>
               </div>
 
@@ -901,7 +1135,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 <select
                   value={ledgerCategoryFilter}
                   onChange={(e) => setLedgerCategoryFilter(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl border-2 border-slate-200 text-xs font-black bg-white text-slate-800"
+                  className="px-2.5 py-1.5 rounded-lg border-2 border-slate-200 text-xs font-black bg-white text-slate-800"
                 >
                   <option value="ALL">Semua Transaksi</option>
                   <option value="KAS_MASUK">Hanya Kas Masuk</option>
@@ -911,10 +1145,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsDepositModalOpen(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1"
+                  onClick={handleExportExcel}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1"
                 >
-                  <PlusCircle className="w-3.5 h-3.5" /> Catat Baru
+                  <Download className="w-3.5 h-3.5" /> Unduh
                 </motion.button>
               </div>
             </div>
@@ -931,28 +1165,28 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     <th className="text-right">Uang Keluar</th>
                     <th className="text-right">Saldo</th>
                     <th>PIC & Rekening</th>
-                    <th className="no-print">Aksi</th>
+                    {userRole === 'BENDAHARA' && <th className="no-print">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {sortedTransactionsWithBalance.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-8 text-slate-400 font-bold">
+                      <td colSpan={9} className="text-center py-8 text-slate-400 font-bold text-xs">
                         Belum ada transaksi. Klik tombol "+ Setor Kas" untuk mulai mencatat.
                       </td>
                     </tr>
                   ) : (
                     sortedTransactionsWithBalance.map((tx) => (
                       <tr key={tx.id}>
-                        <td className="font-bold text-slate-700">{tx.rowNo}.</td>
+                        <td className="font-bold text-slate-700 text-xs">{tx.rowNo}.</td>
                         <td className="whitespace-nowrap font-medium text-slate-600 text-xs">
                           {tx.date}
                         </td>
                         <td>
-                          <div className="font-bold text-slate-900 text-xs md:text-sm">{tx.description}</div>
-                          {tx.note && <div className="text-[11px] text-slate-500 italic mt-0.5">{tx.note}</div>}
+                          <div className="font-bold text-slate-900 text-xs">{tx.description}</div>
+                          {tx.note && <div className="text-[10px] text-slate-500 italic mt-0.5">{tx.note}</div>}
                         </td>
-                        <td className="text-xs text-slate-600">
+                        <td className="text-[11px] text-slate-600">
                           {tx.qty && tx.unitPrice ? (
                             <span>
                               {tx.qty} pcs @ Rp {tx.unitPrice.toLocaleString('id-ID')}
@@ -961,13 +1195,13 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                             '-'
                           )}
                         </td>
-                        <td className="text-right font-black text-emerald-700 text-xs md:text-sm">
+                        <td className="text-right font-black text-emerald-700 text-xs">
                           {tx.type === 'IN' ? `Rp ${tx.amount.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="text-right font-black text-rose-700 text-xs md:text-sm">
+                        <td className="text-right font-black text-rose-700 text-xs">
                           {tx.type === 'OUT' ? `Rp ${tx.amount.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="text-right font-black text-slate-900 text-xs md:text-sm">
+                        <td className="text-right font-black text-slate-900 text-xs">
                           Rp {tx.runningBalance.toLocaleString('id-ID')}
                         </td>
                         <td className="text-xs text-slate-700">
@@ -978,34 +1212,36 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                             </span>
                           )}
                         </td>
-                        <td className="no-print">
-                          <button
-                            onClick={() => handleDeleteTransaction(tx.id, tx.description)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Hapus baris ini"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+                        {userRole === 'BENDAHARA' && (
+                          <td className="no-print">
+                            <button
+                              onClick={() => handleDeleteTransaction(tx.id, tx.description)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                              title="Hapus baris ini"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={4} className="font-black text-slate-900 text-xs md:text-sm">
-                      TOTAL SALDO KAS:
+                    <td colSpan={4} className="font-black text-slate-900 text-xs">
+                      TOTAL SALDO KAS KELAS 4B:
                     </td>
-                    <td className="text-right font-black text-emerald-800 text-xs md:text-sm">
+                    <td className="text-right font-black text-emerald-800 text-xs">
                       Rp {stats.totalKasMasuk.toLocaleString('id-ID')}
                     </td>
-                    <td className="text-right font-black text-rose-800 text-xs md:text-sm">
+                    <td className="text-right font-black text-rose-800 text-xs">
                       Rp {stats.totalKasKeluar.toLocaleString('id-ID')}
                     </td>
-                    <td className="text-right font-black text-teal-900 text-sm md:text-base">
+                    <td className="text-right font-black text-teal-900 text-xs md:text-sm">
                       Rp {stats.saldoKas.toLocaleString('id-ID')}
                     </td>
-                    <td colSpan={2}></td>
+                    <td colSpan={userRole === 'BENDAHARA' ? 2 : 1}></td>
                   </tr>
                 </tfoot>
               </table>
@@ -1013,186 +1249,99 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           </motion.section>
         )}
 
-        {/* TAB 3: ARSIP ACUAN ODS */}
-        {activeTab === 'reference_ods' && (
-          <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-3.5"
-          >
-            <div className="bg-white p-3.5 md:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="badge badge-info text-xs">Dokumen Acuan</span>
-                  <h3 className="font-black text-slate-900 text-base md:text-lg">
-                    Laporan Kas 4 Utsman (ODS Asli)
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Ekstraksi langsung dari file <code className="bg-slate-100 px-1 py-0.5 rounded text-teal-800 font-mono">Laporan Kas 4 Utsman Juni 2026-END.ods</code>.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setOdsSheetTab('cash')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                    odsSheetTab === 'cash'
-                      ? 'bg-teal-700 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Sheet Kas (50 Baris)
-                </button>
-                <button
-                  onClick={() => setOdsSheetTab('thr')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                    odsSheetTab === 'thr'
-                      ? 'bg-amber-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Sheet THR (26 Baris)
-                </button>
-              </div>
-            </div>
-
-            <div className="table-responsive">
-              <table className="ods-table">
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>Tanggal</th>
-                    <th>Keterangan</th>
-                    <th>Qty</th>
-                    <th>Harga Satuan</th>
-                    <th>Total Harga</th>
-                    <th className="text-right">Uang Masuk</th>
-                    <th className="text-right">Uang Keluar</th>
-                    <th className="text-right">Saldo</th>
-                    <th>Keterangan / PIC</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(odsSheetTab === 'cash' ? ODS_CASH_REFERENCE : ODS_THR_REFERENCE).map((row) => (
-                    <tr key={row.no}>
-                      <td className="font-bold text-slate-600">{row.no}.</td>
-                      <td className="whitespace-nowrap font-medium text-slate-600 text-xs">{row.date}</td>
-                      <td className="font-semibold text-slate-900 max-w-xs text-xs md:text-sm">{row.description}</td>
-                      <td className="text-xs text-slate-600">{row.qty || '-'}</td>
-                      <td className="text-xs text-slate-600">{row.unitPrice || '-'}</td>
-                      <td className="text-xs text-slate-600">{row.totalPrice || '-'}</td>
-                      <td className="text-right font-bold text-emerald-700 text-xs md:text-sm">
-                        {row.income || '-'}
-                      </td>
-                      <td className="text-right font-bold text-rose-700 text-xs md:text-sm">
-                        {row.expense || '-'}
-                      </td>
-                      <td className="text-right font-black text-slate-900 text-xs md:text-sm">
-                        {row.balance}
-                      </td>
-                      <td className="text-xs text-slate-600 max-w-xs">{row.pic}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.section>
-        )}
-
-        {/* TAB 4: PANDUAN */}
+        {/* TAB 3: PANDUAN */}
         {activeTab === 'info' && (
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
-                  <CreditCard className="w-5 h-5" />
+            <div className="bg-white rounded-3xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                  <CreditCard className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 text-base md:text-lg">
-                    Rekening Kas Kelas 4B
+                  <h3 className="font-black text-slate-900 text-sm md:text-base">
+                    Rekening Kas & THR Kelas 4B
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium">Tujuan transfer uang kas & THR</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Tujuan transfer uang kas & THR</p>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white p-4 rounded-2xl space-y-2.5 shadow-md">
+              <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white p-3.5 rounded-2xl space-y-2 shadow-md">
                 <div className="flex items-center justify-between text-xs text-teal-200 font-bold">
                   <span>BANK MANDIRI</span>
                   <span className="badge badge-success text-[10px]">Aktif</span>
                 </div>
-                <div className="text-xl md:text-2xl font-mono font-black tracking-wider text-white">
+                <div className="text-lg md:text-xl font-mono font-black tracking-wider text-white">
                   1270004638738
                 </div>
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-white/10">
-                  <div className="font-bold text-teal-100">a/n Naraya XX (Mama Bia)</div>
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-white/10">
+                  <div className="font-bold text-teal-100 text-[11px]">a/n Naraya XX (Mama Bia)</div>
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     onClick={copyRekening}
-                    className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg font-bold flex items-center gap-1"
+                    className="bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
                   >
-                    <Copy className="w-3.5 h-3.5" /> Salin
+                    <Copy className="w-3 h-3" /> Salin
                   </motion.button>
                 </div>
               </div>
 
-              <div className="text-xs text-slate-600 bg-amber-50 p-3.5 rounded-xl border border-amber-200">
+              <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div className="font-black text-amber-900">💡 Catatan untuk Bunda:</div>
-                <p className="mt-0.5 leading-relaxed">
+                <p className="mt-0.5 leading-relaxed text-[11px]">
                   Setelah transfer, Bunda tinggal klik tombol kuning <strong>"+ KLIK DI SINI UNTUK SETOR"</strong>, pilih nama ananda, dan tekan simpan. Praktis & selesai dalam 5 detik!
                 </p>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-900 flex items-center justify-center font-bold">
-                  <Info className="w-5 h-5" />
+            <div className="bg-white rounded-3xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-900 flex items-center justify-center font-bold">
+                  <Info className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 text-base md:text-lg">
+                  <h3 className="font-black text-slate-900 text-sm md:text-base">
                     Petunjuk 3 Langkah
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium">Sangat mudah dipahami</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Sangat mudah dipahami</p>
                 </div>
               </div>
 
-              <div className="space-y-2.5 text-xs md:text-sm text-slate-700">
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
+              <div className="space-y-2 text-xs text-slate-700">
+                <div className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
                     1
                   </div>
                   <div>
                     <div className="font-black text-slate-900">Cek Status Anak Bunda</div>
-                    <p className="text-slate-500 text-xs mt-0.5">
+                    <p className="text-slate-500 text-[11px] mt-0.5">
                       Lihat kartu nama ananda di daftar 25 murid. Status bertuliskan <strong>Lunas (Hijau)</strong> atau <strong>Belum (Kuning)</strong>.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
+                <div className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
                     2
                   </div>
                   <div>
                     <div className="font-black text-slate-900">Tinggal Klik & Submit</div>
-                    <p className="text-slate-500 text-xs mt-0.5">
+                    <p className="text-slate-500 text-[11px] mt-0.5">
                       Klik <strong>"Setor Kas"</strong> di kartu anak, pilih nominal instan (Rp 50rb, 100rb, atau 200rb), lalu klik <strong>"Simpan Pembayaran"</strong>.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
+                <div className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
                     3
                   </div>
                   <div>
                     <div className="font-black text-slate-900">Salin Rekap ke WhatsApp Grup</div>
-                    <p className="text-slate-500 text-xs mt-0.5">
+                    <p className="text-slate-500 text-[11px] mt-0.5">
                       Pengurus tinggal klik tombol <strong>"Kirim ke WA"</strong> untuk langsung meng-copy format pesan cantik ke grup WhatsApp kelas 4B.
                     </p>
                   </div>
@@ -1202,6 +1351,128 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           </motion.section>
         )}
       </main>
+
+      {/* MODAL 0: SELAMAT DATANG & LOGIN SEMENTARA RAMAH IBU-IBU */}
+      <AnimatePresence>
+        {isLoginModalOpen && (
+          <div className="modal-overlay">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="modal-content p-5 md:p-6"
+            >
+              <div className="text-center space-y-1 pb-3 border-b border-slate-100">
+                <span className="inline-block text-3xl animate-bounce">🌸</span>
+                <h3 className="text-lg md:text-xl font-black text-slate-900">
+                  Selamat Datang Bunda & Mama! 💖
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold">
+                  Aplikasi Kas & THR Murid Kelas 4B (2026–2027)
+                </p>
+              </div>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-3.5 pt-3">
+                {/* Switch: Masuk sebagai Mama Murid ATAU Pengurus */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRoleType('MAMA');
+                      setLoginError('');
+                    }}
+                    className={`py-2 rounded-lg text-xs font-black transition-all ${
+                      loginRoleType === 'MAMA'
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    👩 Saya Mama / Wali Murid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRoleType('BENDAHARA');
+                      setLoginError('');
+                    }}
+                    className={`py-2 rounded-lg text-xs font-black transition-all ${
+                      loginRoleType === 'BENDAHARA'
+                        ? 'bg-purple-700 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📋 Pengurus / Bendahara
+                  </button>
+                </div>
+
+                {loginRoleType === 'MAMA' ? (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                      Sentuh & Pilih Nama Ananda Bunda: *
+                    </label>
+                    <select
+                      value={loginSelectedStudentId}
+                      onChange={(e) => setLoginSelectedStudentId(e.target.value)}
+                      className="w-full p-3 rounded-xl border-2 border-teal-300 focus:border-teal-600 font-bold text-slate-900 bg-white text-sm"
+                      required
+                    >
+                      <option value="">-- Sentuh untuk Pilih Nama Anak Bunda --</option>
+                      {students.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          #{s.no}. {s.nickname} — {s.fullName}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-teal-700 font-semibold bg-teal-50 p-2 rounded-lg">
+                      💡 <em>Cukup pilih sekali!</em> Setiap kali Bunda membuka web ini, form setor akan <strong>otomatis langsung terisi nama ananda</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                      Password Pengurus / Bendahara:
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Masukkan kata sandi sementara (misal: 4B)"
+                      value={loginPin}
+                      onChange={(e) => setLoginPin(e.target.value)}
+                      className="w-full p-3 rounded-xl border-2 border-purple-300 focus:border-purple-600 font-bold text-slate-900 text-sm"
+                    />
+                    <p className="text-[11px] text-purple-700 font-semibold bg-purple-50 p-2 rounded-lg">
+                      🔑 Password sementara pengurus: <strong>4B</strong>
+                    </p>
+                  </div>
+                )}
+
+                {loginError && (
+                  <div className="text-xs text-rose-600 font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
+                    ⚠️ {loginError}
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center gap-2">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    type="submit"
+                    className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-black py-3 rounded-xl text-sm shadow-md shadow-teal-700/25 flex items-center justify-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>MASUK SEKARANG</span>
+                  </motion.button>
+                  <button
+                    type="button"
+                    onClick={() => setIsLoginModalOpen(false)}
+                    className="px-3 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL 1: SETOR KAS / THR */}
       <AnimatePresence>
@@ -1228,17 +1499,17 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitDeposit} className="space-y-3.5 pt-3">
+              <form onSubmit={handleSubmitDeposit} className="space-y-3 pt-3">
                 {/* 1. Pilih Anak */}
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    1. Pilih Nama Anak (25 Murid Kelas 4B) *
+                    1. Nama Anak (25 Murid Kelas 4B) *
                   </label>
                   <select
                     required
                     value={depositForm.studentId}
                     onChange={(e) => setDepositForm({ ...depositForm, studentId: e.target.value })}
-                    className="w-full p-3 rounded-xl border-2 border-slate-300 focus:border-teal-600 text-sm md:text-base font-bold text-slate-900 bg-white"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-300 focus:border-teal-600 text-sm font-bold text-slate-900 bg-white"
                   >
                     <option value="">-- Sentuh untuk Pilih Nama Anak --</option>
                     {students.map((s) => (
@@ -1260,10 +1531,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onClick={() =>
                         setDepositForm({ ...depositForm, category: 'KAS_MASUK', amount: 200000 })
                       }
-                      className={`p-3 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
+                      className={`p-2.5 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
                         depositForm.category === 'KAS_MASUK'
                           ? 'border-teal-600 bg-teal-50 text-teal-950 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          : 'border-slate-200 bg-white text-slate-600'
                       }`}
                     >
                       <Wallet className="w-4 h-4 text-teal-700" /> Uang Kas Rutin
@@ -1274,10 +1545,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onClick={() =>
                         setDepositForm({ ...depositForm, category: 'THR_MASUK', amount: 100000 })
                       }
-                      className={`p-3 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
+                      className={`p-2.5 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
                         depositForm.category === 'THR_MASUK'
                           ? 'border-amber-500 bg-amber-50 text-amber-950 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          : 'border-slate-200 bg-white text-slate-600'
                       }`}
                     >
                       <Gift className="w-4 h-4 text-amber-700" /> Uang THR
@@ -1322,7 +1593,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </div>
 
                 {/* 4. Tanggal & Metode */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Tanggal Bayar
@@ -1332,7 +1603,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       required
                       value={depositForm.date}
                       onChange={(e) => setDepositForm({ ...depositForm, date: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-sm"
+                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
                     />
                   </div>
 
@@ -1345,7 +1616,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onChange={(e) =>
                         setDepositForm({ ...depositForm, paymentMethod: e.target.value })
                       }
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 bg-white text-sm"
+                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 bg-white text-xs"
                     >
                       <option value="Transfer Mandiri">Transfer Bank Mandiri</option>
                       <option value="Transfer BCA">Transfer Bank BCA</option>
@@ -1366,7 +1637,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     placeholder="Misal: Trf Mandiri an Bunda..."
                     value={depositForm.note}
                     onChange={(e) => setDepositForm({ ...depositForm, note: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-medium text-slate-800 text-xs md:text-sm"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-medium text-slate-800 text-xs"
                   />
                 </div>
 
@@ -1375,7 +1646,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black text-base md:text-lg py-3.5 rounded-xl shadow-lg shadow-teal-700/25 flex items-center justify-center gap-2"
+                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black text-base py-3.5 rounded-xl shadow-lg shadow-teal-700/25 flex items-center justify-center gap-2"
                   >
                     <Check className="w-5 h-5 stroke-[3]" />
                     <span>SIMPAN & CATAT PEMBAYARAN</span>
@@ -1387,7 +1658,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </AnimatePresence>
 
-      {/* MODAL 2: CATAT PENGELUARAN */}
+      {/* MODAL 2: CATAT PENGELUARAN (BENDAHARA ONLY) */}
       <AnimatePresence>
         {isExpenseModalOpen && (
           <div className="modal-overlay">
@@ -1412,7 +1683,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitExpense} className="space-y-3.5 pt-3">
+              <form onSubmit={handleSubmitExpense} className="space-y-3 pt-3">
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                     1. Kategori Pengeluaran *
@@ -1422,7 +1693,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     onChange={(e) =>
                       setExpenseForm({ ...expenseForm, expenseCategory: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border-2 border-slate-300 focus:border-rose-500 font-bold text-slate-900 bg-white text-sm"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-300 focus:border-rose-500 font-bold text-slate-900 bg-white text-xs md:text-sm"
                   >
                     <option value="Tanda Kasih Sakit/Duka">Tanda Kasih Sakit / Duka (Rp 150.000)</option>
                     <option value="Acara & Konsumsi Hari Guru">Acara & Konsumsi Hari Guru</option>
@@ -1441,17 +1712,16 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   <input
                     type="text"
                     required
-                    placeholder="Misal: Tanda cinta sakit ananda..., konsumsi snack"
+                    placeholder="Misal: Tanda cinta sakit ananda..., snack pensi"
                     value={expenseForm.description}
                     onChange={(e) =>
                       setExpenseForm({ ...expenseForm, description: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-900 text-xs md:text-sm"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-900 text-xs"
                   />
                 </div>
 
-                {/* Qty x Harga Satuan */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
                       Qty / Jumlah
@@ -1515,7 +1785,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Tanggal
@@ -1527,7 +1797,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, date: e.target.value })
                       }
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
+                      className="w-full p-2 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
                     />
                   </div>
 
@@ -1543,7 +1813,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, pic: e.target.value })
                       }
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
+                      className="w-full p-2 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
                     />
                   </div>
                 </div>
@@ -1552,9 +1822,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-base py-3.5 rounded-xl shadow-lg shadow-rose-700/25 flex items-center justify-center gap-2"
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-sm md:text-base py-3 rounded-xl shadow-lg shadow-rose-700/25 flex items-center justify-center gap-2"
                   >
-                    <MinusCircle className="w-5 h-5" />
+                    <MinusCircle className="w-4 h-4" />
                     <span>SIMPAN PENGELUARAN KAS</span>
                   </motion.button>
                 </div>
@@ -1602,7 +1872,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={copyToClipboard}
-                  className={`w-full font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm md:text-base transition-all ${
+                  className={`w-full font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm md:text-base transition-all ${
                     copiedWa
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-700/30'
                       : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-700/25'
@@ -1610,12 +1880,12 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 >
                   {copiedWa ? (
                     <>
-                      <Check className="w-5 h-5 stroke-[3]" />
+                      <Check className="w-4 h-4 stroke-[3]" />
                       <span>BERHASIL DISALIN KE CLIPBOARD!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-5 h-5" />
+                      <Copy className="w-4 h-4" />
                       <span>SALIN PESAN UNTUK WA GRUP (1 KLIK)</span>
                     </>
                   )}
@@ -1626,7 +1896,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </AnimatePresence>
 
-      {/* MOBILE BOTTOM BAR (NAVIGASI KHUSUS HP) */}
+      {/* MOBILE BOTTOM BAR */}
       <nav className="mobile-bottom-bar no-print">
         <button
           onClick={() => setActiveTab('dashboard')}
@@ -1639,13 +1909,13 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         <button
           onClick={() => {
             setDepositForm({
-              studentId: '',
+              studentId: currentMamaStudent ? String(currentMamaStudent.id) : '',
               category: 'KAS_MASUK',
               amount: 200000,
               date: new Date().toISOString().split('T')[0],
               paymentMethod: 'Transfer Mandiri',
-              note: '',
-              customStudentName: '',
+              note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
+              customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
             });
             setIsDepositModalOpen(true);
           }}
@@ -1654,11 +1924,11 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
           <motion.div
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="w-12 h-12 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 text-teal-950 flex items-center justify-center -mt-6 shadow-lg shadow-amber-400/50 border-2 border-white"
+            className="w-11 h-11 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 text-teal-950 flex items-center justify-center -mt-5 shadow-lg shadow-amber-400/50 border-2 border-white"
           >
-            <PlusCircle className="w-7 h-7 stroke-[2.5]" />
+            <PlusCircle className="w-6 h-6 stroke-[2.5]" />
           </motion.div>
-          <span className="font-black text-teal-950 text-[11px] mt-0.5">Setor</span>
+          <span className="font-black text-teal-950 text-[10px] mt-0.5">Setor</span>
         </button>
 
         <button
@@ -1670,16 +1940,16 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         </button>
 
         <button
-          onClick={() => setActiveTab('reference_ods')}
-          className={`bottom-tab-item ${activeTab === 'reference_ods' ? 'active' : ''}`}
+          onClick={handleExportExcel}
+          className="bottom-tab-item text-emerald-700"
         >
-          <FileSpreadsheet />
-          <span>ODS Asli</span>
+          <Download />
+          <span>Excel</span>
         </button>
 
         <button
           onClick={() => setIsWaModalOpen(true)}
-          className="bottom-tab-item text-emerald-700"
+          className="bottom-tab-item text-teal-700"
         >
           <Send />
           <span>WA</span>
