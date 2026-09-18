@@ -923,8 +923,8 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 <PlusCircle className="w-5 h-5 text-teal-950 stroke-[2.5]" />
                 <span>
                   {currentMamaStudent
-                    ? `+ SETOR KAS UNTUK ${currentMamaStudent.nickname.toUpperCase()}`
-                    : '+ KLIK DI SINI UNTUK SETOR KAS / THR'}
+                    ? `SETOR KAS UNTUK ${currentMamaStudent.nickname.toUpperCase()}`
+                    : 'KLIK DI SINI UNTUK SETOR KAS / THR'}
                 </span>
               </motion.button>
 
@@ -1417,7 +1417,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div className="font-black text-amber-900">💡 Catatan untuk Bunda:</div>
                 <p className="mt-0.5 leading-relaxed text-[11px]">
-                  Setelah transfer, Bunda tinggal klik tombol kuning <strong>"+ KLIK DI SINI UNTUK SETOR"</strong>, pilih nama ananda, dan tekan simpan. Praktis & selesai dalam 5 detik!
+                  Setelah transfer, Bunda tinggal klik tombol kuning <strong>"SETOR KAS / THR"</strong>, pilih nama ananda, dan tekan simpan. Praktis & selesai dalam 5 detik!
                 </p>
               </div>
             </div>
