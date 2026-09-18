@@ -5,7 +5,8 @@ export const metadata: Metadata = {
   title: 'Kas & THR Kelas 4B - SD Islam (2026/2027)',
   description: 'Aplikasi pencatatan dan transparansi kas kelas & uang THR khusus wali murid dan pengurus Kelas 4B. Mudah digunakan di HP, tinggal submit!',
   icons: {
-    icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌸</text></svg>',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
 };
 

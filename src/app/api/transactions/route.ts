@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       paymentMethod: body.paymentMethod || 'Transfer',
       pic: body.pic || 'Mama Bendahara',
       note: body.note || null,
+      proofImage: body.proofImage || null,
     });
 
     return NextResponse.json({ success: true, data: newTx });

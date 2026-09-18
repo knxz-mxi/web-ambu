@@ -31,6 +31,7 @@ export interface AppTransaction {
   paymentMethod?: string | null;
   pic?: string | null;
   note?: string | null;
+  proofImage?: string | null;
   createdAt: string;
 }
 
@@ -196,6 +197,7 @@ export async function createTransaction(data: Omit<AppTransaction, 'id' | 'creat
           paymentMethod: data.paymentMethod || undefined,
           pic: data.pic || undefined,
           note: data.note || undefined,
+          proofImage: data.proofImage || undefined,
         },
       });
       return {
@@ -212,6 +214,7 @@ export async function createTransaction(data: Omit<AppTransaction, 'id' | 'creat
         paymentMethod: created.paymentMethod,
         pic: created.pic,
         note: created.note,
+        proofImage: created.proofImage,
         createdAt: created.createdAt.toISOString(),
       };
     } catch (e) {

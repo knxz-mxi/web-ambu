@@ -35,7 +35,12 @@ import {
   Heart,
   ShieldAlert,
   ChevronDown,
-  User
+  User,
+  Camera,
+  AlertTriangle,
+  X,
+  UploadCloud,
+  Image as ImageIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,6 +61,7 @@ interface TransactionItem {
   paymentMethod?: string | null;
   pic?: string | null;
   note?: string | null;
+  proofImage?: string | null;
   createdAt: string;
 }
 
@@ -89,6 +95,25 @@ export default function HomePage() {
   const [copiedWa, setCopiedWa] = useState(false);
   const [copiedRek, setCopiedRek] = useState(false);
 
+  // Modern Toast Notification state (no more native alerts!)
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error' | 'info'; message: string }>>([]);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3800);
+  };
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Modern Delete confirmation modal state (no more window.confirm!)
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: string; desc: string } | null>(null);
+
+  // Modern Screenshot Preview Lightbox modal state
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   // Boomer font mode
   const [isBoomerMode, setIsBoomerMode] = useState(false);
 
@@ -101,9 +126,52 @@ export default function HomePage() {
     paymentMethod: 'Transfer Mandiri',
     note: '',
     customStudentName: '',
+    proofImage: null as string | null,
   });
   const [depositStudentSearch, setDepositStudentSearch] = useState('');
   const [isSelectingStudentInModal, setIsSelectingStudentInModal] = useState(false);
+
+  // Image Upload with Client-Side Canvas Compression (< 250KB)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('File yang dipilih harus berupa foto struk/screenshot ya Bunda!', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.72);
+          setDepositForm((prev) => ({ ...prev, proofImage: compressedBase64 }));
+          showToast('Foto bukti transfer berhasil dipilih! 📸', 'success');
+        }
+      };
+      img.src = readerEvent.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Form State: Pengeluaran (Expense)
   const [expenseForm, setExpenseForm] = useState({
@@ -342,6 +410,7 @@ export default function HomePage() {
       paymentMethod: 'Transfer Mandiri',
       note: `Setoran kas/THR ananda ${student.nickname}`,
       customStudentName: `${student.fullName} (${student.nickname})`,
+      proofImage: null,
     });
     setIsSelectingStudentInModal(false);
     setIsDepositModalOpen(true);
@@ -351,7 +420,7 @@ export default function HomePage() {
   const handleSubmitDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!depositForm.studentId) {
-      alert('Silakan pilih nama ananda terlebih dahulu!');
+      showToast('Silakan pilih nama ananda Bunda terlebih dahulu! 🌸', 'error');
       return;
     }
 
@@ -379,6 +448,7 @@ export default function HomePage() {
           paymentMethod: depositForm.paymentMethod,
           pic: 'Mama Bia (Bendahara)',
           note: depositForm.note || 'Trf Bank Mandiri',
+          proofImage: depositForm.proofImage || null,
         }),
       });
 
@@ -391,12 +461,16 @@ export default function HomePage() {
           colors: ['#0d9488', '#f59e0b', '#ec4899', '#10b981', '#6366f1'],
         });
         setIsDepositModalOpen(false);
+        showToast(
+          `Alhamdulillah! Pembayaran ${depositForm.category === 'KAS_MASUK' ? 'Kas' : 'THR'} ${selStudent?.nickname || ''} tersimpan! 🎉`,
+          'success'
+        );
         fetchData();
       } else {
-        alert('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'));
+        showToast('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'), 'error');
       }
     } catch (err: any) {
-      alert('Kesalahan koneksi: ' + err.message);
+      showToast('Kesalahan koneksi: ' + err.message, 'error');
     }
   };
 
@@ -429,26 +503,37 @@ export default function HomePage() {
       const data = await res.json();
       if (data.success) {
         setIsExpenseModalOpen(false);
+        showToast(`Pengeluaran kas berhasil dicatat! 📝`, 'success');
         fetchData();
       } else {
-        alert('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'));
+        showToast('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'), 'error');
       }
     } catch (err: any) {
-      alert('Kesalahan: ' + err.message);
+      showToast('Kesalahan: ' + err.message, 'error');
     }
   };
 
-  // Delete Transaction
-  const handleDeleteTransaction = async (id: string, desc: string) => {
-    if (!confirm(`Hapus transaksi ini?\n"${desc}"`)) return;
+  // Trigger Delete Confirmation Modal
+  const handleDeleteTransaction = (id: string, desc: string) => {
+    setDeleteConfirmItem({ id, desc });
+  };
+
+  // Execute Confirmed Delete
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmItem) return;
     try {
-      const res = await fetch(`/api/transactions?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/transactions?id=${deleteConfirmItem.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
+        showToast('Transaksi kas berhasil dihapus!', 'info');
         fetchData();
+      } else {
+        showToast('Gagal menghapus: ' + (data.error || 'Terjadi kesalahan'), 'error');
       }
-    } catch (err) {
-      console.error('Delete error:', err);
+    } catch (err: any) {
+      showToast('Kesalahan saat menghapus: ' + err.message, 'error');
+    } finally {
+      setDeleteConfirmItem(null);
     }
   };
 
@@ -488,8 +573,9 @@ export default function HomePage() {
 
       const dateStr = new Date().toISOString().split('T')[0];
       XLSX.writeFile(wb, `Laporan_Kas_Kelas_4B_${dateStr}.xlsx`);
+      showToast('Berhasil mengunduh Laporan Kas Kelas 4B (.xlsx)! 📊', 'success');
     } catch (err: any) {
-      alert('Gagal mengekspor Excel: ' + err.message);
+      showToast('Gagal mengekspor Excel: ' + err.message, 'error');
     }
   };
 
@@ -545,12 +631,14 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
   const copyToClipboard = () => {
     navigator.clipboard.writeText(waReportText);
     setCopiedWa(true);
+    showToast('Pesan laporan WhatsApp berhasil disalin! 📲', 'success');
     setTimeout(() => setCopiedWa(false), 2500);
   };
 
   const copyRekening = () => {
     navigator.clipboard.writeText('1270004638738');
     setCopiedRek(true);
+    showToast('Nomor Rekening Mandiri 1270004638738 disalin! 💳', 'success');
     setTimeout(() => setCopiedRek(false), 2500);
   };
 
@@ -586,17 +674,21 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         <div className="container-app flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <motion.div
-              whileHover={{ rotate: 10, scale: 1.05 }}
-              className="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center text-lg md:text-xl font-black shadow-lg shadow-teal-700/25 border-2 border-white"
+              whileHover={{ rotate: 5, scale: 1.05 }}
+              className="relative w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-white shadow-md border-2 border-teal-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden"
             >
-              4B
+              <img
+                src="/logo.png"
+                alt="Logo Kelas 4B"
+                className="w-full h-full object-contain"
+              />
             </motion.div>
             <div>
               <h1 className="text-sm md:text-lg font-black text-slate-900 leading-tight flex items-center gap-1">
                 Kas & THR Kelas 4B <span className="inline-block animate-bounce">🌸</span>
               </h1>
               <p className="text-[10px] md:text-xs text-slate-500 font-bold">
-                Tahun Ajaran 2026–2027 • Pegangan Mama
+                Tahun Ajaran 2026–2027 • SD Islam
               </p>
             </div>
           </div>
@@ -821,6 +913,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     paymentMethod: 'Transfer Mandiri',
                     note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
                     customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
+                    proofImage: null,
                   });
                   setIsSelectingStudentInModal(!prefillStudentId);
                   setIsDepositModalOpen(true);
@@ -1139,24 +1232,38 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  value={ledgerCategoryFilter}
-                  onChange={(e) => setLedgerCategoryFilter(e.target.value as any)}
-                  className="px-2.5 py-1.5 rounded-lg border-2 border-slate-200 text-xs font-black bg-white text-slate-800"
-                >
-                  <option value="ALL">Semua Transaksi</option>
-                  <option value="KAS_MASUK">Hanya Kas Masuk</option>
-                  <option value="PENGELUARAN">Hanya Pengeluaran Kas</option>
-                  <option value="THR_MASUK">Hanya Uang THR</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+                  {[
+                    { id: 'ALL', label: 'Semua' },
+                    { id: 'KAS_MASUK', label: 'Kas Masuk' },
+                    { id: 'PENGELUARAN', label: 'Pengeluaran' },
+                    { id: 'THR_MASUK', label: 'THR' },
+                  ].map((tab) => {
+                    const isSelected = ledgerCategoryFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setLedgerCategoryFilter(tab.id as any)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                          isSelected
+                            ? 'bg-teal-700 text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={handleExportExcel}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shadow-sm"
                 >
-                  <Download className="w-3.5 h-3.5" /> Unduh
+                  <Download className="w-3.5 h-3.5" /> Unduh .xlsx
                 </motion.button>
               </div>
             </div>
@@ -1193,6 +1300,16 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                         <td>
                           <div className="font-bold text-slate-900 text-xs">{tx.description}</div>
                           {tx.note && <div className="text-[10px] text-slate-500 italic mt-0.5">{tx.note}</div>}
+                          {tx.proofImage && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage(tx.proofImage!)}
+                              className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-all"
+                            >
+                              <Camera className="w-3 h-3 text-teal-600" />
+                              <span>Lihat Bukti Foto 📸</span>
+                            </button>
+                          )}
                         </td>
                         <td className="text-[11px] text-slate-600">
                           {tx.qty && tx.unitPrice ? (
@@ -1370,8 +1487,19 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               exit={{ scale: 0.95, opacity: 0 }}
               className="modal-content p-5 md:p-6"
             >
-              <div className="text-center space-y-1 pb-3 border-b border-slate-100">
-                <span className="inline-block text-3xl animate-bounce">🌸</span>
+              <div className="text-center space-y-2 pb-3 border-b border-slate-100">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                  className="w-16 h-16 mx-auto rounded-2xl bg-white shadow-md border-2 border-teal-100 p-1 flex items-center justify-center overflow-hidden"
+                >
+                  <img
+                    src="/logo.png"
+                    alt="Logo Kelas 4B"
+                    className="w-full h-full object-contain"
+                  />
+                </motion.div>
                 <h3 className="text-lg md:text-xl font-black text-slate-900">
                   Selamat Datang Bunda & Mama! 💖
                 </h3>
@@ -1745,8 +1873,8 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   </div>
                 </div>
 
-                {/* 4. Tanggal & Metode */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* 4. Tanggal & Metode Bayar */}
+                <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Tanggal Bayar
@@ -1756,34 +1884,113 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       required
                       value={depositForm.date}
                       onChange={(e) => setDepositForm({ ...depositForm, date: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
+                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                      Metode Pembayaran
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Metode Pembayaran *</span>
+                      <span className="text-[10px] font-bold text-teal-700">Sentuh untuk memilih</span>
                     </label>
-                    <select
-                      value={depositForm.paymentMethod}
-                      onChange={(e) =>
-                        setDepositForm({ ...depositForm, paymentMethod: e.target.value })
-                      }
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 bg-white text-xs"
-                    >
-                      <option value="Transfer Mandiri">Transfer Bank Mandiri</option>
-                      <option value="Transfer BCA">Transfer Bank BCA</option>
-                      <option value="Transfer BRI">Transfer Bank BRI</option>
-                      <option value="Tunai">Tunai / Cash</option>
-                      <option value="Lainnya">Lainnya / E-Wallet</option>
-                    </select>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'Transfer Mandiri', label: 'Bank Mandiri', sub: 'Kas Utama (127..)', badge: 'Mandiri', color: 'border-blue-500 bg-blue-50/80 text-blue-950', badgeColor: 'bg-blue-600 text-white' },
+                        { id: 'Transfer BCA', label: 'Bank BCA', sub: 'Antar Bank', badge: 'BCA', color: 'border-indigo-500 bg-indigo-50/80 text-indigo-950', badgeColor: 'bg-indigo-600 text-white' },
+                        { id: 'Transfer BRI', label: 'Bank BRI', sub: 'Antar Bank', badge: 'BRI', color: 'border-cyan-500 bg-cyan-50/80 text-cyan-950', badgeColor: 'bg-cyan-600 text-white' },
+                        { id: 'Tunai', label: 'Tunai / Cash', sub: 'Titip Langsung', badge: '💵 Tunai', color: 'border-emerald-500 bg-emerald-50/80 text-emerald-950', badgeColor: 'bg-emerald-600 text-white' },
+                        { id: 'Lainnya', label: 'E-Wallet / QRIS', sub: 'Gopay / OVO', badge: '📱 E-Wallet', color: 'border-purple-500 bg-purple-50/80 text-purple-950', badgeColor: 'bg-purple-600 text-white' },
+                      ].map((item) => {
+                        const isSelected = depositForm.paymentMethod === item.id;
+                        return (
+                          <motion.button
+                            key={item.id}
+                            type="button"
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => setDepositForm({ ...depositForm, paymentMethod: item.id })}
+                            className={`p-2.5 rounded-xl border-2 text-left transition-all relative flex flex-col justify-between ${
+                              isSelected
+                                ? `${item.color} ring-2 ring-teal-500/40 shadow-sm font-bold`
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${item.badgeColor}`}>
+                                {item.badge}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-teal-700 stroke-[3]" />}
+                            </div>
+                            <div className="font-black text-xs leading-tight">{item.label}</div>
+                            <div className="text-[9px] text-slate-500 truncate mt-0.5">{item.sub}</div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* 5. Catatan */}
+                {/* 5. Upload Bukti Screenshot / Struk */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Bukti Transfer / Screenshot Struk</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-teal-700">📸 Sangat Dianjurkan</span>
+                  </label>
+
+                  {depositForm.proofImage ? (
+                    <div className="rounded-2xl border-2 border-teal-500 bg-teal-50/50 p-2.5 flex items-center gap-3">
+                      <img
+                        src={depositForm.proofImage}
+                        alt="Bukti Transfer"
+                        onClick={() => setPreviewImage(depositForm.proofImage)}
+                        className="w-16 h-16 object-cover rounded-xl border-2 border-white shadow-md cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                        title="Klik untuk melihat foto penuh"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-black text-teal-950 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-teal-600 stroke-[2.5]" />
+                          <span>Foto Bukti Terlampir!</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Sentuh gambar untuk memperbesar
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDepositForm((prev) => ({ ...prev, proofImage: null }))}
+                        className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-[11px] font-black flex items-center gap-1 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" /> Hapus
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-teal-300 hover:border-teal-500 bg-teal-50/30 hover:bg-teal-50/60 rounded-2xl p-3.5 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-teal-600 group-hover:scale-110 transition-transform mb-1.5 border border-teal-200">
+                        <Camera className="w-5 h-5 stroke-[2.5]" />
+                      </div>
+                      <div className="text-xs font-black text-teal-950 text-center">
+                        Sentuh di Sini untuk Upload Screenshot Bukti Trf 📸
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 text-center">
+                        Bisa langsung ambil foto kamera atau pilih screenshot dari galeri HP
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                {/* 6. Catatan */}
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    Catatan (Opsional)
+                    Catatan Tambahan (Opsional)
                   </label>
                   <input
                     type="text"
@@ -1838,24 +2045,49 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
               <form onSubmit={handleSubmitExpense} className="space-y-3 pt-3">
                 <div>
-                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    1. Kategori Pengeluaran *
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <span>1. Kategori Pengeluaran *</span>
+                    <span className="text-[10px] font-bold text-rose-600">Sentuh untuk memilih</span>
                   </label>
-                  <select
-                    value={expenseForm.expenseCategory}
-                    onChange={(e) =>
-                      setExpenseForm({ ...expenseForm, expenseCategory: e.target.value })
-                    }
-                    className="w-full p-2.5 rounded-xl border-2 border-slate-300 focus:border-rose-500 font-bold text-slate-900 bg-white text-xs md:text-sm"
-                  >
-                    <option value="Tanda Kasih Sakit/Duka">Tanda Kasih Sakit / Duka (Rp 150.000)</option>
-                    <option value="Acara & Konsumsi Hari Guru">Acara & Konsumsi Hari Guru</option>
-                    <option value="Konsumsi & Snack Murid">Konsumsi & Snack Murid</option>
-                    <option value="Souvenir & Hadiah Murid/Guru">Souvenir & Hadiah Murid / Guru</option>
-                    <option value="Perlengkapan Kelas & Pensi">Perlengkapan Kelas / Pensi</option>
-                    <option value="Setoran THR ke POMG">Setoran THR ke POMG</option>
-                    <option value="Lain-lain">Lain-lain / Biaya Operasional</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[160px] overflow-y-auto p-1.5 border rounded-2xl border-slate-200 bg-slate-50/60">
+                    {[
+                      { id: 'Tanda Kasih Sakit/Duka', label: 'Tanda Kasih Sakit/Duka', icon: '🩺', price: 150000 },
+                      { id: 'Acara & Konsumsi Hari Guru', label: 'Acara Hari Guru', icon: '👩‍🏫', price: 200000 },
+                      { id: 'Konsumsi & Snack Murid', label: 'Snack Murid', icon: '🧃', price: 100000 },
+                      { id: 'Souvenir & Hadiah Murid/Guru', label: 'Souvenir & Hadiah', icon: '🎁', price: 150000 },
+                      { id: 'Perlengkapan Kelas & Pensi', label: 'Pensi & Kelas', icon: '🎨', price: 100000 },
+                      { id: 'Setoran THR ke POMG', label: 'Setor THR POMG', icon: '🕌', price: 2000000 },
+                      { id: 'Lain-lain', label: 'Biaya Lain-lain', icon: '📦', price: 50000 },
+                    ].map((cat) => {
+                      const isSelected = expenseForm.expenseCategory === cat.id;
+                      return (
+                        <motion.button
+                          key={cat.id}
+                          type="button"
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() =>
+                            setExpenseForm({
+                              ...expenseForm,
+                              expenseCategory: cat.id,
+                              unitPrice: cat.price,
+                              amount: expenseForm.qty * cat.price,
+                            })
+                          }
+                          className={`p-2 rounded-xl text-left border-2 text-xs flex items-center gap-2 transition-all ${
+                            isSelected
+                              ? 'border-rose-500 bg-rose-50 text-rose-950 font-black shadow-sm ring-1 ring-rose-400'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="text-base">{cat.icon}</span>
+                          <div className="min-w-0">
+                            <div className="truncate font-black text-xs">{cat.label}</div>
+                            <div className="text-[10px] text-slate-400">Rp {cat.price.toLocaleString('id-ID')}</div>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -2049,6 +2281,140 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </AnimatePresence>
 
+      {/* MODAL 4: KONFIRMASI HAPUS TRANSAKSI (NO PURBA WINDOW.CONFIRM!) */}
+      <AnimatePresence>
+        {deleteConfirmItem && (
+          <div className="modal-overlay z-[9999]">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="modal-content p-5 max-w-sm text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 border border-rose-200">
+                <Trash2 className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <h3 className="font-black text-slate-900 text-base mb-1">Hapus Transaksi Kas?</h3>
+              <p className="text-xs text-slate-600 mb-4 font-medium px-2 leading-relaxed">
+                Apakah Bunda/Pengurus yakin ingin menghapus catatan: <br />
+                <strong className="text-slate-900 font-bold">"{deleteConfirmItem.desc}"</strong>?
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmItem(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-700 text-xs hover:bg-slate-100 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md shadow-rose-600/30 transition-colors"
+                >
+                  Ya, Hapus
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 5: PREVIEW BUKTI TRANSFER (LIGHTBOX POPUP) */}
+      <AnimatePresence>
+        {previewImage && (
+          <div
+            className="modal-overlay z-[99999]"
+            onClick={() => setPreviewImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-lg w-full bg-slate-900/95 backdrop-blur-md p-3 sm:p-4 rounded-3xl shadow-2xl border border-slate-700 mx-3"
+            >
+              <div className="flex items-center justify-between pb-2 text-white border-b border-slate-800 mb-2">
+                <span className="text-xs font-black flex items-center gap-1.5 text-teal-300">
+                  <Camera className="w-4 h-4 text-teal-400" />
+                  Foto Bukti Transfer / Screenshot
+                </span>
+                <button
+                  onClick={() => setPreviewImage(null)}
+                  className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="max-h-[70vh] overflow-auto flex items-center justify-center bg-black/60 rounded-2xl p-1.5">
+                <img
+                  src={previewImage}
+                  alt="Bukti Transfer Penuh"
+                  className="max-h-[65vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+                />
+              </div>
+
+              <div className="pt-3 text-center">
+                <button
+                  onClick={() => setPreviewImage(null)}
+                  className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-md shadow-teal-700/30 transition-all"
+                >
+                  Tutup Foto Bukti
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* FLOATING MODERN TOAST NOTIFICATIONS (NO MORE PURBA BROWSER ALERTS!) */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: -25, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.92 }}
+              transition={{ duration: 0.25, type: 'spring', stiffness: 400, damping: 25 }}
+              className={`pointer-events-auto w-full px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-md ${
+                toast.type === 'success'
+                  ? 'bg-emerald-950/95 text-white border-emerald-500/50 shadow-emerald-950/40'
+                  : toast.type === 'error'
+                  ? 'bg-rose-950/95 text-white border-rose-500/50 shadow-rose-950/40'
+                  : 'bg-teal-950/95 text-white border-teal-500/50 shadow-teal-950/40'
+              }`}
+            >
+              <div className="shrink-0">
+                {toast.type === 'success' && (
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                )}
+                {toast.type === 'error' && (
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                )}
+                {toast.type === 'info' && (
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
+                    <Info className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 text-xs md:text-sm font-bold leading-snug">{toast.message}</div>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="shrink-0 p-1 rounded-lg hover:bg-white/20 text-white/70 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {/* MOBILE BOTTOM BAR */}
       <nav className="mobile-bottom-bar no-print">
         <button
@@ -2070,6 +2436,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               paymentMethod: 'Transfer Mandiri',
               note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
               customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
+              proofImage: null,
             });
             setIsSelectingStudentInModal(!prefillStudentId);
             setIsDepositModalOpen(true);

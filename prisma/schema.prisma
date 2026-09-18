@@ -31,6 +31,7 @@ model Transaction {
   paymentMethod String?  // Mandiri, BCA, BRI, Tunai, ShopeePay
   pic           String?  // Nama PIC (misal: "Mama Bia", "Ibun Cheryl")
   note          String?  // Catatan rekening / nomor bukti
+  proofImage    String?  // Bukti screenshot transfer / struk
   createdAt     DateTime @default(now())
 
   student       Student? @relation(fields: [studentId], references: [id])
