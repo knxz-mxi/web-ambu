@@ -34,7 +34,8 @@ import {
   Lock,
   Heart,
   ShieldAlert,
-  HelpCircle
+  ChevronDown,
+  User
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -64,7 +65,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   // User session state: role & student
-  // role: 'GUEST' | 'MAMA' | 'BENDAHARA'
   const [userRole, setUserRole] = useState<'GUEST' | 'MAMA' | 'BENDAHARA'>('GUEST');
   const [currentMamaStudent, setCurrentMamaStudent] = useState<StudentItem | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -72,8 +72,9 @@ export default function HomePage() {
   const [loginPin, setLoginPin] = useState('');
   const [loginRoleType, setLoginRoleType] = useState<'MAMA' | 'BENDAHARA'>('MAMA');
   const [loginError, setLoginError] = useState('');
+  const [loginStudentSearch, setLoginStudentSearch] = useState('');
 
-  // Active navigation tab: 'dashboard' | 'ledger' | 'info'
+  // Active navigation tab
   const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'info'>('dashboard');
 
   // Search & Filters
@@ -101,6 +102,8 @@ export default function HomePage() {
     note: '',
     customStudentName: '',
   });
+  const [depositStudentSearch, setDepositStudentSearch] = useState('');
+  const [isSelectingStudentInModal, setIsSelectingStudentInModal] = useState(false);
 
   // Form State: Pengeluaran (Expense)
   const [expenseForm, setExpenseForm] = useState({
@@ -135,7 +138,6 @@ export default function HomePage() {
         setCurrentMamaStudent(found);
       }
     } else {
-      // First time visitor: show welcoming login modal gently
       setIsLoginModalOpen(true);
     }
   }, []);
@@ -184,9 +186,6 @@ export default function HomePage() {
     e.preventDefault();
     setLoginError('');
 
-    // PIN sementara: default "4B" atau "1234"
-    const validPins = ['4B', '4b', '1234', ''];
-
     if (loginRoleType === 'BENDAHARA') {
       if (loginPin.trim() === '4B' || loginPin.trim() === '4b' || loginPin.trim() === 'bendahara' || loginPin.trim() === '1234') {
         setUserRole('BENDAHARA');
@@ -201,7 +200,6 @@ export default function HomePage() {
       return;
     }
 
-    // Login as Mama
     if (!loginSelectedStudentId) {
       setLoginError('Silakan sentuh dan pilih nama ananda Bunda terlebih dahulu.');
       return;
@@ -282,7 +280,6 @@ export default function HomePage() {
     });
   }, [students, transactions]);
 
-  // Current logged in Mama's child status
   const myChildStatus = useMemo(() => {
     if (!currentMamaStudent) return null;
     return studentPaymentStatus.find((s) => s.id === currentMamaStudent.id) || null;
@@ -346,12 +343,18 @@ export default function HomePage() {
       note: `Setoran kas/THR ananda ${student.nickname}`,
       customStudentName: `${student.fullName} (${student.nickname})`,
     });
+    setIsSelectingStudentInModal(false);
     setIsDepositModalOpen(true);
   };
 
   // Submit Deposit
   const handleSubmitDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!depositForm.studentId) {
+      alert('Silakan pilih nama ananda terlebih dahulu!');
+      return;
+    }
+
     const selStudent = students.find((s) => String(s.id) === String(depositForm.studentId));
     const studentName = selStudent
       ? `${selStudent.fullName} (${selStudent.nickname})`
@@ -452,7 +455,6 @@ export default function HomePage() {
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
     try {
-      // 1. Sheet Buku Kas
       const kasData = sortedTransactionsWithBalance.map((tx) => ({
         'No.': tx.rowNo,
         'Tanggal': tx.date,
@@ -467,7 +469,6 @@ export default function HomePage() {
         'Catatan / Rekening': tx.note || '',
       }));
 
-      // 2. Sheet Rekap Murid
       const muridData = studentPaymentStatus.map((s) => ({
         'No. Absen': s.no,
         'Nama Lengkap': s.fullName,
@@ -555,16 +556,21 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
   const getAvatarBg = (no: number) => {
     const colors = [
-      'bg-gradient-to-br from-pink-50 to-pink-100 text-pink-700 border-pink-200',
-      'bg-gradient-to-br from-teal-50 to-teal-100 text-teal-800 border-teal-200',
-      'bg-gradient-to-br from-indigo-50 to-indigo-100 text-indigo-700 border-indigo-200',
-      'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-800 border-amber-200',
-      'bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-800 border-emerald-200',
-      'bg-gradient-to-br from-purple-50 to-purple-100 text-purple-700 border-purple-200',
-      'bg-gradient-to-br from-cyan-50 to-cyan-100 text-cyan-800 border-cyan-200',
+      'bg-pink-100 text-pink-700 border-pink-200',
+      'bg-teal-100 text-teal-800 border-teal-200',
+      'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'bg-amber-100 text-amber-800 border-amber-200',
+      'bg-emerald-100 text-emerald-800 border-emerald-200',
+      'bg-purple-100 text-purple-700 border-purple-200',
+      'bg-cyan-100 text-cyan-800 border-cyan-200',
     ];
     return colors[no % colors.length];
   };
+
+  // Selected student in deposit modal
+  const selectedDepositStudent = useMemo(() => {
+    return students.find((s) => String(s.id) === String(depositForm.studentId)) || null;
+  }, [depositForm.studentId, students]);
 
   return (
     <div className="min-h-screen text-slate-800 relative">
@@ -601,11 +607,11 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1"
-                title="Klik untuk ganti nama anak / akun"
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-sm"
+                title="Klik untuk ganti anak"
               >
                 <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="truncate max-w-[90px] md:max-w-none">
+                <span className="truncate max-w-[85px] md:max-w-none">
                   Mama {currentMamaStudent.nickname}
                 </span>
               </motion.button>
@@ -613,7 +619,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1"
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-sm"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
                 <span>Pengurus</span>
@@ -662,7 +668,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
       {/* MAIN CONTAINER */}
       <main className="container-app py-3 md:py-4 space-y-4">
 
-        {/* WELCOME BANNER KHUSUS MAMA / IBU-IBU */}
+        {/* WELCOME BANNER KHUSUS MAMA */}
         {userRole === 'MAMA' && currentMamaStudent && myChildStatus ? (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -678,7 +684,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   Selamat Datang, Bunda / Mama {currentMamaStudent.nickname}! 💖
                 </div>
                 <div className="text-xs md:text-sm text-slate-600 font-semibold mt-0.5">
-                  Ananda: <strong>{currentMamaStudent.fullName}</strong> (No. Absen {currentMamaStudent.no})
+                  Ananda: <strong>{currentMamaStudent.fullName}</strong> (Absen #{currentMamaStudent.no})
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`badge ${myChildStatus.kasLunas ? 'badge-success' : 'badge-warning'} text-[11px]`}>
@@ -702,7 +708,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               </motion.button>
               <button
                 onClick={handleLogout}
-                className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-2 rounded-lg"
+                className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-2 rounded-lg"
                 title="Bukan Mama ini? Klik untuk ganti"
               >
                 Ganti
@@ -718,14 +724,14 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
             <div className="flex items-center gap-2.5 text-xs md:text-sm text-slate-700 font-semibold">
               <span className="text-lg">👋</span>
               <span>
-                Bunda belum memilih nama ananda?{' '}
+                Bunda belum memilih ananda?{' '}
                 <strong className="text-teal-700">Pilih sekali agar saat setor langsung otomatis!</strong>
               </span>
             </div>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsLoginModalOpen(true)}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-xl text-xs font-black shrink-0"
+              className="bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-black shrink-0 shadow-sm"
             >
               Pilih Nama Anak
             </motion.button>
@@ -806,8 +812,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
+                  const prefillStudentId = currentMamaStudent ? String(currentMamaStudent.id) : '';
                   setDepositForm({
-                    studentId: currentMamaStudent ? String(currentMamaStudent.id) : '',
+                    studentId: prefillStudentId,
                     category: 'KAS_MASUK',
                     amount: 200000,
                     date: new Date().toISOString().split('T')[0],
@@ -815,9 +822,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
                     customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
                   });
+                  setIsSelectingStudentInModal(!prefillStudentId);
                   setIsDepositModalOpen(true);
                 }}
-                className="btn-golden-glow flex-1 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-teal-950 font-black px-4 py-3 md:py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm md:text-base border-2 border-white/60"
+                className="btn-golden-glow flex-1 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-teal-950 font-black px-4 py-3 md:py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm md:text-base border-2 border-white/60 shadow-lg"
               >
                 <PlusCircle className="w-5 h-5 text-teal-950 stroke-[2.5]" />
                 <span>
@@ -956,7 +964,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Ketik nama anak Bunda (misal: Afraz, Queen, Sakha, Fathia...)"
+                  placeholder="Ketik nama ananda Bunda (misal: Afraz, Queen, Sakha, Fathia...)"
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 rounded-xl border-2 border-slate-200 focus:border-teal-600 font-bold text-slate-900 text-xs md:text-sm placeholder:font-medium placeholder:text-slate-400"
@@ -1352,7 +1360,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </main>
 
-      {/* MODAL 0: SELAMAT DATANG & LOGIN SEMENTARA RAMAH IBU-IBU */}
+      {/* MODAL 0: SELAMAT DATANG & LOGIN SEMENTARA */}
       <AnimatePresence>
         {isLoginModalOpen && (
           <div className="modal-overlay">
@@ -1373,7 +1381,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-3.5 pt-3">
-                {/* Switch: Masuk sebagai Mama Murid ATAU Pengurus */}
+                {/* Switch Role */}
                 <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
                   <button
                     type="button"
@@ -1407,22 +1415,76 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
                 {loginRoleType === 'MAMA' ? (
                   <div className="space-y-2">
-                    <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                      Sentuh & Pilih Nama Ananda Bunda: *
-                    </label>
-                    <select
-                      value={loginSelectedStudentId}
-                      onChange={(e) => setLoginSelectedStudentId(e.target.value)}
-                      className="w-full p-3 rounded-xl border-2 border-teal-300 focus:border-teal-600 font-bold text-slate-900 bg-white text-sm"
-                      required
-                    >
-                      <option value="">-- Sentuh untuk Pilih Nama Anak Bunda --</option>
-                      {students.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          #{s.no}. {s.nickname} — {s.fullName}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                        Sentuh & Pilih Nama Ananda Bunda: *
+                      </label>
+                      <span className="text-[11px] font-bold text-teal-700">25 Murid</span>
+                    </div>
+
+                    {/* Quick Search */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Cari nama atau panggilan anak..."
+                        value={loginStudentSearch}
+                        onChange={(e) => setLoginStudentSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+                      />
+                    </div>
+
+                    {/* CUSTOM VISUAL GRID OF 25 STUDENTS */}
+                    <div className="max-h-[220px] overflow-y-auto space-y-1.5 p-1 border rounded-xl border-slate-200 bg-slate-50/50">
+                      {students
+                        .filter(
+                          (s) =>
+                            loginStudentSearch === '' ||
+                            s.nickname.toLowerCase().includes(loginStudentSearch.toLowerCase()) ||
+                            s.fullName.toLowerCase().includes(loginStudentSearch.toLowerCase()) ||
+                            String(s.no) === loginStudentSearch.trim()
+                        )
+                        .map((s) => {
+                          const isSelected = String(loginSelectedStudentId) === String(s.id);
+                          return (
+                            <motion.button
+                              key={s.id}
+                              type="button"
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => setLoginSelectedStudentId(String(s.id))}
+                              className={`w-full p-2 rounded-xl flex items-center justify-between text-left transition-all border ${
+                                isSelected
+                                  ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                                  : 'bg-white text-slate-800 border-slate-200 hover:border-teal-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                                    isSelected ? 'bg-white/20 text-white' : getAvatarBg(s.no)
+                                  }`}
+                                >
+                                  {s.no}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-black text-xs md:text-sm truncate">
+                                    {s.nickname}
+                                  </div>
+                                  <div
+                                    className={`text-[10px] truncate ${
+                                      isSelected ? 'text-teal-100' : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {s.fullName}
+                                  </div>
+                                </div>
+                              </div>
+                              {isSelected && <Check className="w-4 h-4 stroke-[3] shrink-0 text-white ml-2" />}
+                            </motion.button>
+                          );
+                        })}
+                    </div>
+
                     <p className="text-[11px] text-teal-700 font-semibold bg-teal-50 p-2 rounded-lg">
                       💡 <em>Cukup pilih sekali!</em> Setiap kali Bunda membuka web ini, form setor akan <strong>otomatis langsung terisi nama ananda</strong>.
                     </p>
@@ -1474,7 +1536,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </AnimatePresence>
 
-      {/* MODAL 1: SETOR KAS / THR */}
+      {/* MODAL 1: SETOR KAS / THR (DENGAN VISUAL CUSTOM STUDENT SELECTOR) */}
       <AnimatePresence>
         {isDepositModalOpen && (
           <div className="modal-overlay">
@@ -1482,7 +1544,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="modal-content p-5 md:p-6"
+              className="modal-content p-4 md:p-6"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -1499,25 +1561,116 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitDeposit} className="space-y-3 pt-3">
-                {/* 1. Pilih Anak */}
+              <form onSubmit={handleSubmitDeposit} className="space-y-3.5 pt-3">
+                {/* 1. VISUAL CUSTOM STUDENT PICKER (NO UGLY BROWSER SELECT!) */}
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    1. Nama Anak (25 Murid Kelas 4B) *
+                    1. Nama Ananda Murid Kelas 4B *
                   </label>
-                  <select
-                    required
-                    value={depositForm.studentId}
-                    onChange={(e) => setDepositForm({ ...depositForm, studentId: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border-2 border-slate-300 focus:border-teal-600 text-sm font-bold text-slate-900 bg-white"
-                  >
-                    <option value="">-- Sentuh untuk Pilih Nama Anak --</option>
-                    {students.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.no}. {s.nickname} — {s.fullName}
-                      </option>
-                    ))}
-                  </select>
+
+                  {/* Selected Card Banner */}
+                  {selectedDepositStudent && !isSelectingStudentInModal ? (
+                    <div className="p-3 bg-teal-50 rounded-2xl border-2 border-teal-300 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm border shrink-0 ${getAvatarBg(
+                            selectedDepositStudent.no
+                          )}`}
+                        >
+                          {selectedDepositStudent.no}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-black text-slate-900 text-sm md:text-base truncate">
+                            {selectedDepositStudent.nickname}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium truncate">
+                            {selectedDepositStudent.fullName}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsSelectingStudentInModal(true)}
+                        className="text-xs font-black text-teal-800 bg-white border border-teal-300 hover:bg-teal-100 px-3 py-1.5 rounded-xl shrink-0"
+                      >
+                        Ganti Anak
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 border-2 border-teal-200 p-2.5 rounded-2xl bg-slate-50/50">
+                      {/* Search box */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Ketik nama atau panggilan anak..."
+                          value={depositStudentSearch}
+                          onChange={(e) => setDepositStudentSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
+                        />
+                      </div>
+
+                      {/* Visual Chips List */}
+                      <div className="max-h-[170px] overflow-y-auto space-y-1.5 pr-1">
+                        {students
+                          .filter(
+                            (s) =>
+                              depositStudentSearch === '' ||
+                              s.nickname.toLowerCase().includes(depositStudentSearch.toLowerCase()) ||
+                              s.fullName.toLowerCase().includes(depositStudentSearch.toLowerCase()) ||
+                              String(s.no) === depositStudentSearch.trim()
+                          )
+                          .map((s) => {
+                            const isSelected = String(depositForm.studentId) === String(s.id);
+                            return (
+                              <motion.button
+                                key={s.id}
+                                type="button"
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                  setDepositForm({
+                                    ...depositForm,
+                                    studentId: String(s.id),
+                                    note: `Setoran kas/THR ananda ${s.nickname}`,
+                                    customStudentName: `${s.fullName} (${s.nickname})`,
+                                  });
+                                  setIsSelectingStudentInModal(false);
+                                }}
+                                className={`w-full p-2 rounded-xl flex items-center justify-between text-left transition-all border ${
+                                  isSelected
+                                    ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                                    : 'bg-white text-slate-800 border-slate-200 hover:border-teal-300'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div
+                                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                                      isSelected ? 'bg-white/20 text-white' : getAvatarBg(s.no)
+                                    }`}
+                                  >
+                                    {s.no}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-black text-xs truncate">
+                                      {s.nickname}
+                                    </div>
+                                    <div
+                                      className={`text-[10px] truncate ${
+                                        isSelected ? 'text-teal-100' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      {s.fullName}
+                                    </div>
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 stroke-[3] shrink-0 text-white" />}
+                              </motion.button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Jenis Setoran */}
@@ -1658,7 +1811,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
         )}
       </AnimatePresence>
 
-      {/* MODAL 2: CATAT PENGELUARAN (BENDAHARA ONLY) */}
+      {/* MODAL 2: CATAT PENGELUARAN */}
       <AnimatePresence>
         {isExpenseModalOpen && (
           <div className="modal-overlay">
@@ -1797,7 +1950,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, date: e.target.value })
                       }
-                      className="w-full p-2 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
+                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
                     />
                   </div>
 
@@ -1813,7 +1966,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, pic: e.target.value })
                       }
-                      className="w-full p-2 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
+                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-800 text-xs"
                     />
                   </div>
                 </div>
@@ -1908,8 +2061,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
 
         <button
           onClick={() => {
+            const prefillStudentId = currentMamaStudent ? String(currentMamaStudent.id) : '';
             setDepositForm({
-              studentId: currentMamaStudent ? String(currentMamaStudent.id) : '',
+              studentId: prefillStudentId,
               category: 'KAS_MASUK',
               amount: 200000,
               date: new Date().toISOString().split('T')[0],
@@ -1917,6 +2071,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
               customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
             });
+            setIsSelectingStudentInModal(!prefillStudentId);
             setIsDepositModalOpen(true);
           }}
           className="bottom-tab-item text-teal-900"
