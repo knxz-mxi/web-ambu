@@ -26,7 +26,9 @@ import {
   Trash2,
   Eye,
   ChevronRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  HelpCircle,
+  HeartHandshake
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { STUDENTS_KELAS_4B, StudentItem } from '@/lib/students';
@@ -55,7 +57,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   // Active navigation tab: 'dashboard' | 'students' | 'ledger' | 'reference_ods' | 'info'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'ledger' | 'reference_ods' | 'info'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'reference_ods' | 'info'>('dashboard');
 
   // Search & Filters
   const [studentSearch, setStudentSearch] = useState('');
@@ -70,6 +72,7 @@ export default function HomePage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isWaModalOpen, setIsWaModalOpen] = useState(false);
   const [copiedWa, setCopiedWa] = useState(false);
+  const [copiedRek, setCopiedRek] = useState(false);
 
   // Boomer font mode
   const [isBoomerMode, setIsBoomerMode] = useState(false);
@@ -81,7 +84,7 @@ export default function HomePage() {
     amount: 200000,
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'Transfer Mandiri',
-    note: 'Trf ke Rek Kas Kelas',
+    note: '',
     customStudentName: '',
   });
 
@@ -118,7 +121,7 @@ export default function HomePage() {
     }
   };
 
-  // Fetch transactions and students from API
+  // Fetch data
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -177,19 +180,17 @@ export default function HomePage() {
   // Map student payment status
   const studentPaymentStatus = useMemo(() => {
     return students.map((s) => {
-      // All Kas paid by this student
       const kasTxList = transactions.filter(
         (t) => t.studentId === s.id && t.category === 'KAS_MASUK'
       );
       const totalKasPaid = kasTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      const kasLunas = totalKasPaid >= 200000; // Standar kas 1 semester Rp 200rb
+      const kasLunas = totalKasPaid >= 200000;
 
-      // All THR paid by this student
       const thrTxList = transactions.filter(
         (t) => t.studentId === s.id && t.category === 'THR_MASUK'
       );
       const totalThrPaid = thrTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      const thrLunas = totalThrPaid >= 100000; // Standar THR Rp 100rb
+      const thrLunas = totalThrPaid >= 100000;
 
       return {
         ...s,
@@ -220,12 +221,11 @@ export default function HomePage() {
     });
   }, [studentPaymentStatus, studentSearch, studentFilter]);
 
-  // Compute running balance for the current active ledger
+  // Running balance for active ledger
   const sortedTransactionsWithBalance = useMemo(() => {
     let runningKas = 0;
     let runningThr = 0;
 
-    // Filter by category if selected
     const filtered = transactions.filter((tx) => {
       if (ledgerCategoryFilter === 'ALL') return true;
       return tx.category === ledgerCategoryFilter;
@@ -249,7 +249,7 @@ export default function HomePage() {
     });
   }, [transactions, ledgerCategoryFilter]);
 
-  // Handle Quick Deposit Modal Open with Pre-selected Student
+  // Open Deposit Modal with Pre-selected Student
   const handleOpenDepositForStudent = (student: StudentItem, category: 'KAS_MASUK' | 'THR_MASUK' = 'KAS_MASUK') => {
     setDepositForm({
       studentId: String(student.id),
@@ -257,7 +257,7 @@ export default function HomePage() {
       amount: category === 'KAS_MASUK' ? 200000 : 100000,
       date: new Date().toISOString().split('T')[0],
       paymentMethod: 'Transfer Mandiri',
-      note: `Setoran kas/THR ${student.nickname}`,
+      note: `Setoran kas/THR ananda ${student.nickname}`,
       customStudentName: `${student.fullName} (${student.nickname})`,
     });
     setIsDepositModalOpen(true);
@@ -289,19 +289,17 @@ export default function HomePage() {
           description: desc,
           paymentMethod: depositForm.paymentMethod,
           pic: 'Mama Bia (Bendahara)',
-          note: depositForm.note,
+          note: depositForm.note || 'Trf Bank Mandiri',
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        // Trigger celebratory confetti
         confetti({
           particleCount: 80,
           spread: 70,
           origin: { y: 0.6 },
         });
-
         setIsDepositModalOpen(false);
         fetchData();
       } else {
@@ -343,7 +341,7 @@ export default function HomePage() {
         setIsExpenseModalOpen(false);
         fetchData();
       } else {
-        alert('Gagal mencatat pengeluaran: ' + (data.error || 'Terjadi kesalahan'));
+        alert('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'));
       }
     } catch (err: any) {
       alert('Kesalahan: ' + err.message);
@@ -376,34 +374,30 @@ export default function HomePage() {
     const lunasKasList = studentPaymentStatus.filter((s) => s.kasLunas);
     const belumKasList = studentPaymentStatus.filter((s) => !s.kasLunas);
 
-    const lunasThrList = studentPaymentStatus.filter((s) => s.thrLunas);
-    const belumThrList = studentPaymentStatus.filter((s) => !s.thrLunas);
-
     return `*LAPORAN KAS & THR KELAS 4B* 🌸
 *SD ISLAM TAHUN AJARAN 2026-2027*
 Per: ${todayStr}
 
 ━━━━━━━━━━━━━━━━━━━━
-💰 *RINGKASAN KEUANGAN KAS:*
+💰 *RINGKASAN KAS KELAS:*
 • Total Pemasukan: Rp ${stats.totalKasMasuk.toLocaleString('id-ID')}
 • Total Pengeluaran: Rp ${stats.totalKasKeluar.toLocaleString('id-ID')}
 • *SISA SALDO KAS: Rp ${stats.saldoKas.toLocaleString('id-ID')}*
 
 🎁 *RINGKASAN UANG THR:*
-• Total Terkumpul: Rp ${stats.totalThrMasuk.toLocaleString('id-ID')}
-• Saldo THR Tersimpan: Rp ${stats.saldoThr.toLocaleString('id-ID')}
+• Saldo THR Terkumpul: Rp ${stats.saldoThr.toLocaleString('id-ID')}
 ━━━━━━━━━━━━━━━━━━━━
 
-✅ *STATUS PEMBAYARAN KAS (${lunasKasList.length}/25 Murid Lunas):*
+✅ *SUDAH BAYAR KAS (${lunasKasList.length}/25 Anak):*
 ${
   lunasKasList.length > 0
-    ? lunasKasList.map((s, idx) => `${idx + 1}. ${s.nickname} (Rp ${s.totalKasPaid.toLocaleString('id-ID')})`).join('\n')
+    ? lunasKasList.map((s, idx) => `${idx + 1}. ${s.nickname} (Lunas)`).join('\n')
     : '_Belum ada data_'
 }
 
 ${
   belumKasList.length > 0
-    ? `⏳ *BELUM SETOR KAS (${belumKasList.length} Murid):*\n` +
+    ? `⏳ *BELUM SETOR KAS (${belumKasList.length} Anak):*\n` +
       belumKasList.map((s, idx) => `${idx + 1}. ${s.nickname}`).join('\n')
     : '🎉 *Masya Allah, Semua Murid Sudah Lunas Kas!*'
 }
@@ -414,7 +408,7 @@ ${
 a/n Naraya XX (Mama Bia - Bendahara)
 Konfirmasi setor: Japri bukti transfer ya Bunda/Mama 🙏
 
-_Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
+_Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
   }, [studentPaymentStatus, stats]);
 
   const copyToClipboard = () => {
@@ -423,21 +417,41 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
     setTimeout(() => setCopiedWa(false), 2500);
   };
 
+  const copyRekening = () => {
+    navigator.clipboard.writeText('1270004638738');
+    setCopiedRek(true);
+    setTimeout(() => setCopiedRek(false), 2500);
+  };
+
+  // Color generator for student initial avatars
+  const getAvatarBg = (no: number) => {
+    const colors = [
+      'bg-pink-100 text-pink-700 border-pink-200',
+      'bg-teal-100 text-teal-800 border-teal-200',
+      'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'bg-amber-100 text-amber-800 border-amber-200',
+      'bg-emerald-100 text-emerald-800 border-emerald-200',
+      'bg-purple-100 text-purple-700 border-purple-200',
+      'bg-cyan-100 text-cyan-800 border-cyan-200',
+    ];
+    return colors[no % colors.length];
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* TOP HEADER */}
       <header className="top-header no-print">
         <div className="container-app flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-teal-700/20">
+            <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-xl font-black shadow-md shadow-teal-700/20">
               4B
             </div>
             <div>
-              <h1 className="text-lg md:text-xl font-extrabold text-slate-900 leading-tight">
+              <h1 className="text-lg md:text-xl font-black text-slate-900 leading-tight flex items-center gap-1.5">
                 Kas & THR Kelas 4B 🌸
               </h1>
-              <p className="text-xs md:text-sm text-slate-500 font-medium">
-                Tahun Ajaran 2026-2027 • Pegangan Mama & Pengurus
+              <p className="text-xs md:text-sm text-slate-500 font-semibold">
+                Tahun Ajaran 2026–2027 • Khusus Wali Murid & Pengurus
               </p>
             </div>
           </div>
@@ -446,104 +460,105 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
             {/* Boomer Mode Toggle */}
             <button
               onClick={toggleBoomerMode}
-              className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center gap-1.5 transition-all border ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-black flex items-center gap-1.5 transition-all border ${
                 isBoomerMode
-                  ? 'bg-amber-100 text-amber-900 border-amber-300'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
               }`}
-              title="Perbesar tulisan agar mudah dibaca ibu-ibu"
+              title="Perbesar huruf agar mudah dibaca mak-mak"
             >
               <Eye className="w-4 h-4 text-amber-600" />
-              <span className="hidden sm:inline">Huruf Besar</span>
-              <span>{isBoomerMode ? 'Aktif' : 'Normal'}</span>
+              <span className="hidden sm:inline">Huruf Besar:</span>
+              <span>{isBoomerMode ? 'Aktif 🔍' : 'Normal'}</span>
             </button>
 
             {/* WA Button Header */}
             <button
               onClick={() => setIsWaModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center gap-1.5 shadow-sm transition-all"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-black flex items-center gap-1.5 shadow-md shadow-emerald-700/20 transition-all"
             >
               <Send className="w-4 h-4" />
-              <span className="hidden md:inline">Kirim ke WA</span>
+              <span className="hidden sm:inline">Kirim ke WA Grup</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* MAIN CONTENT CONTAINER */}
+      {/* MAIN CONTAINER */}
       <main className="container-app py-5 space-y-6">
-        {/* HERO GREETING & QUICK BALANCE */}
-        <section className="bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-800 text-white rounded-3xl p-5 md:p-7 shadow-xl shadow-teal-900/10 relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-10 -mt-10 w-48 h-48 rounded-full bg-white/5 pointer-events-none blur-xl"></div>
-          <div className="relative z-10 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        {/* BANNER UTAMA RAMAH MAK-MAK */}
+        <section className="bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-800 text-white rounded-3xl p-5 md:p-7 shadow-xl shadow-teal-950/15 relative overflow-hidden border border-teal-600/30">
+          <div className="relative z-10 space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-900/60 text-teal-200 text-xs font-semibold backdrop-blur-sm">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white/15 text-teal-100 text-xs font-bold backdrop-blur-md border border-white/20">
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  Transparan & Ramah Ibu-Ibu
+                  Praktis di HP • Tinggal Klik & Setor
                 </span>
-                <h2 className="text-xl md:text-2xl font-bold mt-2">
-                  Saldo Kas Kelas 4B Saat Ini
+                <h2 className="text-2xl md:text-3xl font-black mt-2 tracking-tight">
+                  Halo Bunda & Mama Kelas 4B! 👋
                 </h2>
-                <p className="text-teal-100 text-sm">
-                  Update real-time pencatatan kas murid dan pengeluaran kegiatan.
+                <p className="text-teal-100 text-sm md:text-base font-medium mt-1">
+                  Catatan uang kas dan THR transparan, aman, dan bisa dicek kapan saja.
                 </p>
               </div>
 
-              {/* Saldo Angka Utama */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 min-w-[240px]">
-                <div className="text-xs text-teal-200 font-medium">Sisa Kas Tersedia</div>
-                <div className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mt-0.5">
+              {/* KOTAK SALDO BESAR */}
+              <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 md:p-5 border border-white/25 shadow-inner min-w-[260px]">
+                <div className="text-xs font-bold text-teal-200 uppercase tracking-wider">
+                  Sisa Saldo Kas Kelas
+                </div>
+                <div className="text-3xl md:text-4xl font-black text-white tracking-tight mt-1">
                   Rp {stats.saldoKas.toLocaleString('id-ID')}
                 </div>
-                <div className="text-xs text-emerald-200 font-medium mt-1 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Uang Kas Aman & Terdata
+                <div className="text-xs font-semibold text-emerald-200 mt-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" /> Kas Aktif Terverifikasi
                 </div>
               </div>
             </div>
 
-            {/* Quick Balances Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-                <div className="text-xs text-teal-200 flex items-center gap-1">
-                  <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-300" /> Kas Masuk
+            {/* QUICK STATS CARDS */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3.5 border border-white/15">
+                <div className="text-xs text-teal-200 font-bold flex items-center gap-1">
+                  <ArrowDownLeft className="w-4 h-4 text-emerald-300" /> Kas Masuk
                 </div>
-                <div className="text-base md:text-lg font-bold text-white mt-1">
+                <div className="text-lg md:text-xl font-black text-white mt-1">
                   Rp {stats.totalKasMasuk.toLocaleString('id-ID')}
                 </div>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-                <div className="text-xs text-teal-200 flex items-center gap-1">
-                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-300" /> Pengeluaran
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3.5 border border-white/15">
+                <div className="text-xs text-teal-200 font-bold flex items-center gap-1">
+                  <ArrowUpRight className="w-4 h-4 text-rose-300" /> Kas Keluar
                 </div>
-                <div className="text-base md:text-lg font-bold text-white mt-1">
+                <div className="text-lg md:text-xl font-black text-white mt-1">
                   Rp {stats.totalKasKeluar.toLocaleString('id-ID')}
                 </div>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-                <div className="text-xs text-amber-200 flex items-center gap-1">
-                  <Gift className="w-3.5 h-3.5 text-amber-300" /> Uang THR
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3.5 border border-white/15">
+                <div className="text-xs text-amber-200 font-bold flex items-center gap-1">
+                  <Gift className="w-4 h-4 text-amber-300" /> Uang THR
                 </div>
-                <div className="text-base md:text-lg font-bold text-amber-100 mt-1">
+                <div className="text-lg md:text-xl font-black text-amber-200 mt-1">
                   Rp {stats.saldoThr.toLocaleString('id-ID')}
                 </div>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-                <div className="text-xs text-teal-200 flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-teal-300" /> Murid Lunas
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3.5 border border-white/15">
+                <div className="text-xs text-teal-200 font-bold flex items-center gap-1">
+                  <Users className="w-4 h-4 text-teal-300" /> Murid Lunas Kas
                 </div>
-                <div className="text-base md:text-lg font-bold text-white mt-1">
-                  {studentPaymentStatus.filter((s) => s.kasLunas).length} / 25 Anak
+                <div className="text-lg md:text-xl font-black text-white mt-1">
+                  {studentPaymentStatus.filter((s) => s.kasLunas).length} dari 25 Anak
                 </div>
               </div>
             </div>
 
-            {/* 2 Big Action Buttons: Setor & Keluar */}
-            <div className="flex flex-wrap gap-3 pt-2">
+            {/* 2 TOMBOL BESAR UTAMA */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 onClick={() => {
                   setDepositForm({
@@ -552,15 +567,15 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     amount: 200000,
                     date: new Date().toISOString().split('T')[0],
                     paymentMethod: 'Transfer Mandiri',
-                    note: 'Trf ke Rek Mandiri Kas',
+                    note: '',
                     customStudentName: '',
                   });
                   setIsDepositModalOpen(true);
                 }}
-                className="flex-1 min-w-[160px] bg-emerald-400 hover:bg-emerald-300 text-teal-950 font-black px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 text-base shadow-lg shadow-emerald-500/20 transition-transform active:scale-98"
+                className="flex-1 bg-amber-400 hover:bg-amber-300 text-teal-950 font-black px-6 py-4 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-lg shadow-amber-400/30 transition-transform active:scale-98"
               >
-                <PlusCircle className="w-5 h-5 text-teal-950" />
-                <span>+ Setor Kas / THR</span>
+                <PlusCircle className="w-6 h-6 text-teal-950" />
+                <span>+ KLIK DI SINI UNTUK SETOR KAS / THR</span>
               </button>
 
               <button
@@ -578,131 +593,160 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                   });
                   setIsExpenseModalOpen(true);
                 }}
-                className="flex-1 min-w-[160px] bg-rose-500/90 hover:bg-rose-500 text-white font-bold px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 text-base border border-rose-400/40 shadow-lg shadow-rose-900/20 transition-transform active:scale-98"
+                className="bg-rose-600/90 hover:bg-rose-600 text-white font-black px-6 py-4 rounded-2xl flex items-center justify-center gap-2 text-base border border-rose-400/40 shadow-lg shadow-rose-950/20 transition-transform active:scale-98"
               >
                 <MinusCircle className="w-5 h-5" />
-                <span>- Catat Pengeluaran</span>
+                <span>- Catat Pengeluaran Kelas</span>
               </button>
             </div>
           </div>
         </section>
 
-        {/* DESKTOP / TABLET NAV TABS */}
-        <section className="no-print flex items-center justify-between border-b border-slate-200 pb-2">
-          <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+        {/* REKENING CEPAT BANNER */}
+        <section className="bg-white rounded-2xl p-4 border-2 border-teal-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                Rekening Kas & THR Kelas 4B (Mandiri)
+              </div>
+              <div className="text-base md:text-lg font-black text-slate-900 font-mono tracking-wider">
+                1270004638738 <span className="text-sm font-sans font-semibold text-slate-600">a/n Naraya XX (Mama Bia)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all ${
-                activeTab === 'dashboard'
-                  ? 'bg-teal-700 text-white shadow-sm'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              onClick={copyRekening}
+              className={`flex-1 md:flex-initial px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 transition-all ${
+                copiedRek
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Checklist 25 Murid</span>
+              {copiedRek ? (
+                <>
+                  <Check className="w-4 h-4" /> Nomor Rekening Tersalin!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" /> Salin No. Rekening
+                </>
+              )}
+            </button>
+          </div>
+        </section>
+
+        {/* NAVIGATION TABS */}
+        <section className="no-print flex items-center justify-between border-b-2 border-slate-200 pb-2">
+          <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none w-full">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-4 py-3 rounded-2xl font-black text-sm md:text-base flex items-center gap-2 transition-all whitespace-nowrap ${
+                activeTab === 'dashboard'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span>Daftar 25 Murid & Status</span>
             </button>
 
             <button
               onClick={() => setActiveTab('ledger')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all ${
+              className={`px-4 py-3 rounded-2xl font-black text-sm md:text-base flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeTab === 'ledger'
-                  ? 'bg-teal-700 text-white shadow-sm'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-5 h-5" />
               <span>Buku Kas Aktif (2026/2027)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('reference_ods')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all ${
+              className={`px-4 py-3 rounded-2xl font-black text-sm md:text-base flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeTab === 'reference_ods'
-                  ? 'bg-teal-700 text-white shadow-sm'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
               <span>Arsip Acuan ODS (4 Utsman)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('info')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all ${
+              className={`px-4 py-3 rounded-2xl font-black text-sm md:text-base flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeTab === 'info'
-                  ? 'bg-teal-700 text-white shadow-sm'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
-              <Info className="w-4 h-4" />
-              <span>Rekening Kas & Panduan</span>
-            </button>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2">
-            <button
-              onClick={() => window.print()}
-              className="px-3 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl text-sm font-semibold hover:bg-slate-50 flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" /> Cetak Laporan
+              <Info className="w-5 h-5" />
+              <span>Panduan Mudah</span>
             </button>
           </div>
         </section>
 
-        {/* TAB 1: CHECKLIST 25 MURID */}
+        {/* TAB 1: CHECKLIST 25 MURID & STATUS */}
         {activeTab === 'dashboard' && (
           <section className="space-y-4">
-            {/* Filter & Search Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            {/* Search & Filter */}
+            <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="relative">
+                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Cari nama anak / panggilan (misal: Afraz, Fathia, Queen...)"
+                  placeholder="Cari nama anak Bunda (misal: Afraz, Queen, Sakha, Fathia, Arsen...)"
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-600 font-medium text-slate-800 text-sm md:text-base"
+                  className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-slate-200 focus:border-teal-600 font-bold text-slate-900 text-sm md:text-base placeholder:font-medium placeholder:text-slate-400"
                 />
               </div>
 
-              {/* Status Chips Filter */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+              {/* Status Chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 <button
                   onClick={() => setStudentFilter('ALL')}
-                  className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs md:text-sm font-black whitespace-nowrap transition-all ${
                     studentFilter === 'ALL'
-                      ? 'bg-slate-800 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   Semua ({studentPaymentStatus.length})
                 </button>
                 <button
                   onClick={() => setStudentFilter('KAS_LUNAS')}
-                  className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs md:text-sm font-black whitespace-nowrap transition-all ${
                     studentFilter === 'KAS_LUNAS'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
                   }`}
                 >
                   Kas Lunas ({studentPaymentStatus.filter((s) => s.kasLunas).length})
                 </button>
                 <button
                   onClick={() => setStudentFilter('KAS_BELUM')}
-                  className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs md:text-sm font-black whitespace-nowrap transition-all ${
                     studentFilter === 'KAS_BELUM'
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
                   }`}
                 >
                   Kas Belum ({studentPaymentStatus.filter((s) => !s.kasLunas).length})
                 </button>
                 <button
                   onClick={() => setStudentFilter('THR_LUNAS')}
-                  className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs md:text-sm font-black whitespace-nowrap transition-all ${
                     studentFilter === 'THR_LUNAS'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200'
                   }`}
                 >
                   THR Lunas ({studentPaymentStatus.filter((s) => s.thrLunas).length})
@@ -710,88 +754,95 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
               </div>
             </div>
 
-            {/* List Murid - Responsive Cards for Mobile & Table for Desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* List 25 Murid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredStudents.map((s) => (
                 <div
                   key={s.id}
-                  className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3"
+                  className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm hover:shadow-md hover:border-teal-400 transition-all flex flex-col justify-between space-y-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-teal-100 text-teal-900 font-bold flex items-center justify-center text-base border border-teal-200">
-                        {s.no}
+                  <div className="flex items-start gap-3.5">
+                    <div
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2 shrink-0 ${getAvatarBg(
+                        s.no
+                      )}`}
+                    >
+                      {s.no}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-slate-900 text-lg md:text-xl truncate">
+                          {s.nickname}
+                        </span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold shrink-0">
+                          Absen #{s.no}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-slate-900 text-base md:text-lg">
-                            {s.nickname}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
-                            No. {s.no}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 line-clamp-1 font-medium">
-                          {s.fullName}
-                        </div>
+                      <div className="text-xs text-slate-500 font-medium line-clamp-1 mt-0.5">
+                        {s.fullName}
                       </div>
                     </div>
                   </div>
 
-                  {/* Payment Badges */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                      <div className="text-[11px] text-slate-500 font-semibold">Uang Kas</div>
-                      <div className="flex items-center justify-between mt-1">
+                  {/* Status Badges Box */}
+                  <div className="grid grid-cols-2 gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                        Kas Rutin
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
                         {s.kasLunas ? (
                           <span className="badge badge-success text-xs">
-                            <CheckCircle2 className="w-3 h-3" /> Lunas
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Lunas
                           </span>
                         ) : (
                           <span className="badge badge-warning text-xs">
-                            <Clock className="w-3 h-3" /> Belum
+                            <Clock className="w-3.5 h-3.5" /> Belum
                           </span>
                         )}
-                        <span className="text-xs font-bold text-slate-700">
-                          {s.totalKasPaid > 0 ? `Rp ${(s.totalKasPaid / 1000).toFixed(0)}k` : 'Rp 0'}
+                        <span className="text-xs font-black text-slate-700">
+                          Rp {(s.totalKasPaid / 1000).toFixed(0)}k
                         </span>
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                      <div className="text-[11px] text-slate-500 font-semibold">Uang THR</div>
-                      <div className="flex items-center justify-between mt-1">
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                        Uang THR
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
                         {s.thrLunas ? (
                           <span className="badge badge-success text-xs">
-                            <CheckCircle2 className="w-3 h-3" /> Lunas
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Lunas
                           </span>
                         ) : (
                           <span className="badge badge-warning text-xs">
-                            <Clock className="w-3 h-3" /> Belum
+                            <Clock className="w-3.5 h-3.5" /> Belum
                           </span>
                         )}
-                        <span className="text-xs font-bold text-slate-700">
-                          {s.totalThrPaid > 0 ? `Rp ${(s.totalThrPaid / 1000).toFixed(0)}k` : 'Rp 0'}
+                        <span className="text-xs font-black text-slate-700">
+                          Rp {(s.totalThrPaid / 1000).toFixed(0)}k
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Quick Setor Action */}
-                  <div className="flex items-center gap-2 pt-1">
+                  {/* 2 Quick Action Buttons per Murid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
-                      className="flex-1 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-1 transition-colors"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-700/20 active:scale-98 transition-all"
                     >
-                      <PlusCircle className="w-3.5 h-3.5 text-teal-700" />
-                      Setor Kas
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Setor Kas</span>
                     </button>
+
                     <button
                       onClick={() => handleOpenDepositForStudent(s, 'THR_MASUK')}
-                      className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-1 transition-colors"
+                      className="bg-amber-500 hover:bg-amber-600 text-amber-950 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-1.5 shadow-sm shadow-amber-600/20 active:scale-98 transition-all"
                     >
-                      <Gift className="w-3.5 h-3.5 text-amber-700" />
-                      Setor THR
+                      <Gift className="w-4 h-4" />
+                      <span>Setor THR</span>
                     </button>
                   </div>
                 </div>
@@ -800,26 +851,24 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
           </section>
         )}
 
-        {/* TAB 2: BUKU KAS AKTIF (2026/2027) */}
+        {/* TAB 2: BUKU KAS AKTIF */}
         {activeTab === 'ledger' && (
           <section className="space-y-4">
-            {/* Header & Filter */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h3 className="font-extrabold text-slate-900 text-lg">
-                  Buku Kas & Pengeluaran Kelas 4B (Aktif)
+                <h3 className="font-black text-slate-900 text-lg md:text-xl">
+                  Buku Kas & Pengeluaran Kelas 4B (Aktif) 📖
                 </h3>
-                <p className="text-xs md:text-sm text-slate-500">
+                <p className="text-xs md:text-sm text-slate-500 font-medium">
                   Format tabel pembukuan resmi sesuai acuan format ODS (No, Tanggal, Rincian, Pemasukan, Pengeluaran, Saldo).
                 </p>
               </div>
 
-              {/* Filter */}
               <div className="flex items-center gap-2">
                 <select
                   value={ledgerCategoryFilter}
                   onChange={(e) => setLedgerCategoryFilter(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs md:text-sm font-semibold bg-white text-slate-700"
+                  className="px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs md:text-sm font-black bg-white text-slate-800"
                 >
                   <option value="ALL">Semua Transaksi</option>
                   <option value="KAS_MASUK">Hanya Kas Masuk</option>
@@ -829,14 +878,13 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
 
                 <button
                   onClick={() => setIsDepositModalOpen(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center gap-1"
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-black flex items-center gap-1.5 shadow-md shadow-teal-700/20"
                 >
                   <PlusCircle className="w-4 h-4" /> Catat Baru
                 </button>
               </div>
             </div>
 
-            {/* ODS Standard Ledger Table */}
             <div className="table-responsive">
               <table className="ods-table">
                 <thead>
@@ -855,7 +903,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                 <tbody>
                   {sortedTransactionsWithBalance.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-8 text-slate-400 font-medium">
+                      <td colSpan={9} className="text-center py-10 text-slate-400 font-bold">
                         Belum ada transaksi yang tercatat. Klik tombol "+ Setor Kas" untuk mulai mencatat.
                       </td>
                     </tr>
@@ -867,7 +915,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                           {tx.date}
                         </td>
                         <td>
-                          <div className="font-semibold text-slate-900">{tx.description}</div>
+                          <div className="font-bold text-slate-900">{tx.description}</div>
                           {tx.note && <div className="text-xs text-slate-500 italic mt-0.5">{tx.note}</div>}
                         </td>
                         <td className="text-xs text-slate-600">
@@ -879,17 +927,17 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                             '-'
                           )}
                         </td>
-                        <td className="text-right font-bold text-emerald-700">
+                        <td className="text-right font-black text-emerald-700">
                           {tx.type === 'IN' ? `Rp ${tx.amount.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="text-right font-bold text-rose-700">
+                        <td className="text-right font-black text-rose-700">
                           {tx.type === 'OUT' ? `Rp ${tx.amount.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="text-right font-black text-slate-900">
+                        <td className="text-right font-black text-slate-900 text-base">
                           Rp {tx.runningBalance.toLocaleString('id-ID')}
                         </td>
                         <td className="text-xs text-slate-700">
-                          <span className="font-semibold text-teal-800">{tx.pic || 'Mama Bia'}</span>
+                          <span className="font-bold text-teal-800">{tx.pic || 'Mama Bia'}</span>
                           {tx.paymentMethod && (
                             <span className="block text-[11px] text-slate-500">
                               via {tx.paymentMethod}
@@ -920,7 +968,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     <td className="text-right font-black text-rose-800">
                       Rp {stats.totalKasKeluar.toLocaleString('id-ID')}
                     </td>
-                    <td className="text-right font-black text-teal-900 text-base">
+                    <td className="text-right font-black text-teal-900 text-lg">
                       Rp {stats.saldoKas.toLocaleString('id-ID')}
                     </td>
                     <td colSpan={2}></td>
@@ -934,45 +982,44 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
         {/* TAB 3: ARSIP ACUAN ODS HISTORIS */}
         {activeTab === 'reference_ods' && (
           <section className="space-y-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="badge badge-info">Dokumen Acuan</span>
-                  <h3 className="font-extrabold text-slate-900 text-lg">
-                    Arsip Laporan Kas 4 Utsman (Acuan ODS Asli)
+                  <span className="badge badge-info">Dokumen Acuan Asli</span>
+                  <h3 className="font-black text-slate-900 text-lg md:text-xl">
+                    Laporan Kas 4 Utsman (Format ODS Acuan)
                   </h3>
                 </div>
-                <p className="text-xs md:text-sm text-slate-500 mt-1">
-                  Data asli yang diekstrak langsung dari file <code className="bg-slate-100 px-1 py-0.5 rounded text-teal-800 font-mono">Laporan Kas 4 Utsman Juni 2026-END.ods</code> sebagai pedoman format laporan kelas.
+                <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
+                  Data asli yang diekstrak dari file <code className="bg-slate-100 px-1 py-0.5 rounded text-teal-800 font-mono">Laporan Kas 4 Utsman Juni 2026-END.ods</code> sebagai standar pembukuan.
                 </p>
               </div>
 
-              {/* Switch Sheet: Cash vs THR */}
-              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+              {/* Switch Sheet */}
+              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
                 <button
                   onClick={() => setOdsSheetTab('cash')}
-                  className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${
+                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black transition-all ${
                     odsSheetTab === 'cash'
                       ? 'bg-teal-700 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Sheet Kas (50 Transaksi)
+                  Sheet Kas (50 Baris)
                 </button>
                 <button
                   onClick={() => setOdsSheetTab('thr')}
-                  className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${
+                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black transition-all ${
                     odsSheetTab === 'thr'
                       ? 'bg-amber-600 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Sheet THR (26 Transaksi)
+                  Sheet THR (26 Baris)
                 </button>
               </div>
             </div>
 
-            {/* ODS Historical Data Table */}
             <div className="table-responsive">
               <table className="ods-table">
                 <thead>
@@ -994,7 +1041,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     <tr key={row.no}>
                       <td className="font-bold text-slate-600">{row.no}.</td>
                       <td className="whitespace-nowrap font-medium text-slate-600">{row.date}</td>
-                      <td className="font-medium text-slate-900 max-w-xs">{row.description}</td>
+                      <td className="font-semibold text-slate-900 max-w-xs">{row.description}</td>
                       <td className="text-xs text-slate-600">{row.qty || '-'}</td>
                       <td className="text-xs text-slate-600">{row.unitPrice || '-'}</td>
                       <td className="text-xs text-slate-600">{row.totalPrice || '-'}</td>
@@ -1004,7 +1051,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                       <td className="text-right font-bold text-rose-700">
                         {row.expense || '-'}
                       </td>
-                      <td className="text-right font-extrabold text-slate-900">
+                      <td className="text-right font-black text-slate-900">
                         {row.balance}
                       </td>
                       <td className="text-xs text-slate-600 max-w-xs">{row.pic}</td>
@@ -1016,106 +1063,101 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
           </section>
         )}
 
-        {/* TAB 4: REKENING & PANDUAN */}
+        {/* TAB 4: PANDUAN MUDAH */}
         {activeTab === 'info' && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Rekening Kas Info Card */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
                   <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">
-                    Rekening Resmi Kas Kelas 4B
+                  <h3 className="font-black text-slate-900 text-lg md:text-xl">
+                    Rekening Kas & THR Kelas 4B
                   </h3>
-                  <p className="text-xs text-slate-500">Tujuan transfer uang kas & THR</p>
+                  <p className="text-xs text-slate-500 font-medium">Tujuan transfer uang kas & THR</p>
                 </div>
               </div>
 
               <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white p-5 rounded-2xl space-y-3 shadow-lg">
-                <div className="flex items-center justify-between text-xs text-teal-200">
+                <div className="flex items-center justify-between text-xs text-teal-200 font-bold">
                   <span>BANK MANDIRI</span>
                   <span className="badge badge-success text-[10px]">Aktif</span>
                 </div>
                 <div>
                   <div className="text-xs text-slate-400">Nomor Rekening:</div>
-                  <div className="text-2xl font-mono font-black tracking-wider text-white">
+                  <div className="text-2xl md:text-3xl font-mono font-black tracking-wider text-white">
                     1270004638738
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sm pt-2 border-t border-white/10">
                   <div>
                     <div className="text-[11px] text-slate-400">Atas Nama:</div>
-                    <div className="font-bold text-teal-100">Naraya XX (Mama Bia)</div>
+                    <div className="font-bold text-teal-100">Naraya XX (Mama Bia - Bendahara)</div>
                   </div>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText('1270004638738');
-                      alert('Nomor rekening Mandiri berhasil disalin!');
-                    }}
+                    onClick={copyRekening}
                     className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1"
                   >
-                    <Copy className="w-3.5 h-3.5" /> Salin No. Rek
+                    <Copy className="w-3.5 h-3.5" /> Salin
                   </button>
                 </div>
               </div>
 
-              <div className="text-xs text-slate-600 bg-amber-50 p-3.5 rounded-xl border border-amber-200 space-y-1">
-                <div className="font-bold text-amber-900">💡 Catatan untuk Bunda & Mama:</div>
-                <p>
-                  Setelah transfer, mohon kirim bukti transfer ke WhatsApp Mama Bia (Bendahara) atau bisa langsung masukkan via tombol <strong>"+ Setor Kas"</strong> di aplikasi ini.
+              <div className="text-xs text-slate-600 bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-1">
+                <div className="font-black text-amber-900">💡 Catatan untuk Bunda & Mama:</div>
+                <p className="leading-relaxed">
+                  Setelah transfer, Bunda bisa langsung klik tombol kuning <strong>"+ KLIK DI SINI UNTUK SETOR"</strong> di aplikasi ini, pilih nama ananda, dan tekan simpan. Laporan kas langsung terupdate otomatis!
                 </p>
               </div>
             </div>
 
-            {/* Panduan Mak-Mak */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-900 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-900 flex items-center justify-center font-bold">
                   <Info className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">
-                    Petunjuk Penggunaan Mudah
+                  <h3 className="font-black text-slate-900 text-lg md:text-xl">
+                    Petunjuk Penggunaan untuk Ibu-Ibu
                   </h3>
-                  <p className="text-xs text-slate-500">Dirancang khusus agar praktis di HP</p>
+                  <p className="text-xs text-slate-500 font-medium">Sangat mudah, cuma butuh 3 langkah</p>
                 </div>
               </div>
 
               <div className="space-y-3 text-sm text-slate-700">
-                <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
                     1
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900">Buka Checklist 25 Murid</div>
+                    <div className="font-black text-slate-900">Cek Status Anak Bunda</div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Cari nama anak Bunda di kolom pencarian. Status pembayaran Kas & THR terlihat langsung (Lunas / Belum).
+                      Lihat kartu nama anak Bunda di daftar 25 murid. Jika sudah bayar, status bertuliskan <strong>Lunas (Hijau)</strong>.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
                     2
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900">Klik "Setor Kas" atau "+ Setor"</div>
+                    <div className="font-black text-slate-900">Tinggal Klik & Submit</div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Pilih nominal cepat (Rp 50rb, 100rb, atau 200rb), lalu klik tombol hijau <strong>"Simpan Setoran"</strong>.
+                      Klik tombol <strong>"Setor Kas"</strong> di sebelah nama anak, pilih nominal instan (Rp 50rb, 100rb, atau 200rb), lalu klik <strong>"Simpan Pembayaran"</strong>.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
                     3
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900">Salin Rekap ke WhatsApp Grup</div>
+                    <div className="font-black text-slate-900">Salin Rekap ke WhatsApp Grup</div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Bendahara / pengurus tinggal klik tombol <strong>"Kirim ke WA"</strong> untuk langsung meng-copy format rekap cantik ke grup kelas.
+                      Pengurus kelas tinggal klik tombol <strong>"Kirim ke WA"</strong> di pojok kanan atas untuk langsung meng-copy format pesan cantik ke grup WhatsApp kelas 4B.
                     </p>
                   </div>
                 </div>
@@ -1125,20 +1167,20 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
         )}
       </main>
 
-      {/* MODAL 1: SETOR UANG KAS / THR (SUPER MUDAH UNTUK MAK-MAK) */}
+      {/* MODAL 1: SETOR KAS / THR (SUPER MUDAH UNTUK MAK-MAK) */}
       {isDepositModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <span className="badge badge-success text-xs">Formulir Cepat</span>
-                <h3 className="text-xl font-extrabold text-slate-900 mt-1">
+                <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
                   Catat Setoran Kas / THR 💰
                 </h3>
               </div>
               <button
                 onClick={() => setIsDepositModalOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold"
+                className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black text-lg"
               >
                 ✕
               </button>
@@ -1147,14 +1189,14 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
             <form onSubmit={handleSubmitDeposit} className="space-y-4 pt-4">
               {/* 1. Pilih Anak */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   1. Pilih Nama Anak (25 Murid Kelas 4B) *
                 </label>
                 <select
                   required
                   value={depositForm.studentId}
                   onChange={(e) => setDepositForm({ ...depositForm, studentId: e.target.value })}
-                  className="w-full p-3 rounded-xl border-2 border-slate-200 focus:border-teal-600 text-base font-semibold text-slate-900 bg-white"
+                  className="w-full p-3.5 rounded-2xl border-2 border-slate-300 focus:border-teal-600 text-base font-bold text-slate-900 bg-white shadow-sm"
                 >
                   <option value="">-- Sentuh untuk Pilih Nama Anak --</option>
                   {students.map((s) => (
@@ -1167,22 +1209,22 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
 
               {/* 2. Jenis Setoran */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   2. Jenis Pembayaran *
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() =>
                       setDepositForm({ ...depositForm, category: 'KAS_MASUK', amount: 200000 })
                     }
-                    className={`p-3 rounded-xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
+                    className={`p-3.5 rounded-2xl font-black text-sm md:text-base border-2 transition-all flex items-center justify-center gap-2 ${
                       depositForm.category === 'KAS_MASUK'
-                        ? 'border-teal-600 bg-teal-50 text-teal-900'
-                        : 'border-slate-200 bg-white text-slate-600'
+                        ? 'border-teal-600 bg-teal-50 text-teal-950 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    <Wallet className="w-4 h-4" /> Uang Kas Rutin
+                    <Wallet className="w-5 h-5 text-teal-700" /> Uang Kas Rutin
                   </button>
 
                   <button
@@ -1190,23 +1232,23 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onClick={() =>
                       setDepositForm({ ...depositForm, category: 'THR_MASUK', amount: 100000 })
                     }
-                    className={`p-3 rounded-xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
+                    className={`p-3.5 rounded-2xl font-black text-sm md:text-base border-2 transition-all flex items-center justify-center gap-2 ${
                       depositForm.category === 'THR_MASUK'
-                        ? 'border-amber-500 bg-amber-50 text-amber-900'
-                        : 'border-slate-200 bg-white text-slate-600'
+                        ? 'border-amber-500 bg-amber-50 text-amber-950 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    <Gift className="w-4 h-4" /> Uang THR
+                    <Gift className="w-5 h-5 text-amber-700" /> Uang THR
                   </button>
                 </div>
               </div>
 
               {/* 3. Tombol Cepat Nominal */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  3. Pilih Nominal Setoran (Tinggal Klik) *
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                  3. Pilih Nominal (Tinggal Klik) *
                 </label>
-                <div className="grid grid-cols-3 gap-2 mb-2">
+                <div className="grid grid-cols-3 gap-2.5 mb-2.5">
                   {[50000, 100000, 200000].map((nom) => (
                     <button
                       key={nom}
@@ -1220,7 +1262,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                 </div>
 
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">
                     Rp
                   </span>
                   <input
@@ -1232,7 +1274,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onChange={(e) =>
                       setDepositForm({ ...depositForm, amount: Number(e.target.value) })
                     }
-                    className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-200 focus:border-teal-600 font-black text-slate-900 text-lg"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border-2 border-slate-300 focus:border-teal-600 font-black text-slate-900 text-xl"
                   />
                 </div>
               </div>
@@ -1240,7 +1282,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
               {/* 4. Tanggal & Metode */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                     Tanggal Bayar
                   </label>
                   <input
@@ -1248,12 +1290,12 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     required
                     value={depositForm.date}
                     onChange={(e) => setDepositForm({ ...depositForm, date: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-slate-800"
+                    className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-bold text-slate-800"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                     Metode Pembayaran
                   </label>
                   <select
@@ -1261,7 +1303,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onChange={(e) =>
                       setDepositForm({ ...depositForm, paymentMethod: e.target.value })
                     }
-                    className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-slate-800 bg-white"
+                    className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-bold text-slate-800 bg-white"
                   >
                     <option value="Transfer Mandiri">Transfer Bank Mandiri</option>
                     <option value="Transfer BCA">Transfer Bank BCA</option>
@@ -1274,23 +1316,23 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
 
               {/* 5. Catatan */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                   Catatan / Keterangan (Opsional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Misal: Trf atas nama Bunda ..., lunas semester 1"
+                  placeholder="Misal: Trf Mandiri an Bunda..., lunas s/d Desember"
                   value={depositForm.note}
                   onChange={(e) => setDepositForm({ ...depositForm, note: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-200 font-medium text-slate-800 text-sm"
+                  className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-medium text-slate-800 text-sm"
                 />
               </div>
 
-              {/* Tombol Simpan Besar Ramah Jempol */}
+              {/* Tombol Simpan Besar */}
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-lg py-4 rounded-2xl shadow-lg shadow-teal-700/25 flex items-center justify-center gap-2 transition-transform active:scale-98"
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-teal-700/25 flex items-center justify-center gap-2 transition-transform active:scale-98"
                 >
                   <Check className="w-6 h-6 stroke-[3]" />
                   <span>SIMPAN & CATAT PEMBAYARAN</span>
@@ -1301,20 +1343,20 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
         </div>
       )}
 
-      {/* MODAL 2: CATAT PENGELUARAN (UNTUK PENGURUS/BENDAHARA) */}
+      {/* MODAL 2: CATAT PENGELUARAN */}
       {isExpenseModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <span className="badge badge-danger text-xs">Uang Keluar</span>
-                <h3 className="text-xl font-extrabold text-slate-900 mt-1">
+                <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
                   Catat Pengeluaran Kas Kelas 📝
                 </h3>
               </div>
               <button
                 onClick={() => setIsExpenseModalOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold"
+                className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black text-lg"
               >
                 ✕
               </button>
@@ -1322,7 +1364,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
 
             <form onSubmit={handleSubmitExpense} className="space-y-4 pt-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   1. Kategori Pengeluaran *
                 </label>
                 <select
@@ -1330,7 +1372,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                   onChange={(e) =>
                     setExpenseForm({ ...expenseForm, expenseCategory: e.target.value })
                   }
-                  className="w-full p-3 rounded-xl border-2 border-slate-200 focus:border-rose-500 font-semibold text-slate-900 bg-white"
+                  className="w-full p-3.5 rounded-2xl border-2 border-slate-300 focus:border-rose-500 font-bold text-slate-900 bg-white"
                 >
                   <option value="Tanda Kasih Sakit/Duka">Tanda Kasih Sakit / Duka (Rp 150.000)</option>
                   <option value="Acara & Konsumsi Hari Guru">Acara & Konsumsi Hari Guru</option>
@@ -1343,7 +1385,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   2. Keterangan / Nama Kegiatan *
                 </label>
                 <input
@@ -1354,12 +1396,12 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                   onChange={(e) =>
                     setExpenseForm({ ...expenseForm, description: e.target.value })
                   }
-                  className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-slate-900 text-sm"
+                  className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-bold text-slate-900 text-sm"
                 />
               </div>
 
               {/* Rincian Qty x Harga Satuan */}
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">
                     Qty / Jumlah (Opsional)
@@ -1376,7 +1418,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                         amount: q * expenseForm.unitPrice,
                       });
                     }}
-                    className="w-full p-2.5 rounded-lg border border-slate-200 font-bold text-slate-800 bg-white"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-black text-slate-800 bg-white"
                   />
                 </div>
 
@@ -1397,17 +1439,17 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                         amount: expenseForm.qty * up,
                       });
                     }}
-                    className="w-full p-2.5 rounded-lg border border-slate-200 font-bold text-slate-800 bg-white"
+                    className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-black text-slate-800 bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   3. Total Nominal Pengeluaran (Rp) *
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">
                     Rp
                   </span>
                   <input
@@ -1418,14 +1460,14 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onChange={(e) =>
                       setExpenseForm({ ...expenseForm, amount: Number(e.target.value) })
                     }
-                    className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-rose-300 focus:border-rose-600 font-black text-rose-900 text-lg"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border-2 border-rose-300 focus:border-rose-600 font-black text-rose-900 text-xl"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                     Tanggal
                   </label>
                   <input
@@ -1435,12 +1477,12 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onChange={(e) =>
                       setExpenseForm({ ...expenseForm, date: e.target.value })
                     }
-                    className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-slate-800"
+                    className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-bold text-slate-800"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                     PIC Pengurus
                   </label>
                   <input
@@ -1451,13 +1493,13 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                     onChange={(e) =>
                       setExpenseForm({ ...expenseForm, pic: e.target.value })
                     }
-                    className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-slate-800 text-sm"
+                    className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-bold text-slate-800 text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
                   Catatan Rekening / Nota
                 </label>
                 <input
@@ -1467,14 +1509,14 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
                   onChange={(e) =>
                     setExpenseForm({ ...expenseForm, note: e.target.value })
                   }
-                  className="w-full p-3 rounded-xl border border-slate-200 font-medium text-slate-800 text-sm"
+                  className="w-full p-3.5 rounded-2xl border-2 border-slate-200 font-medium text-slate-800 text-sm"
                 />
               </div>
 
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-lg py-4 rounded-2xl shadow-lg shadow-rose-700/25 flex items-center justify-center gap-2 transition-transform active:scale-98"
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-rose-700/25 flex items-center justify-center gap-2 transition-transform active:scale-98"
                 >
                   <MinusCircle className="w-6 h-6" />
                   <span>SIMPAN PENGELUARAN KAS</span>
@@ -1490,20 +1532,20 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
         <div className="modal-overlay">
           <div className="modal-content p-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
                   <Send className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900">
+                  <h3 className="text-lg md:text-xl font-black text-slate-900">
                     Format Pesan WhatsApp Grup 📲
                   </h3>
-                  <p className="text-xs text-slate-500">Tinggal klik salin lalu paste di grup WA</p>
+                  <p className="text-xs text-slate-500 font-medium">Tinggal klik salin lalu paste di grup WA</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsWaModalOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold"
+                className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black text-lg"
               >
                 ✕
               </button>
@@ -1517,15 +1559,15 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
               <div className="flex items-center gap-3">
                 <button
                   onClick={copyToClipboard}
-                  className={`flex-1 font-extrabold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-base transition-all ${
+                  className={`flex-1 font-black py-4 px-4 rounded-2xl flex items-center justify-center gap-2 text-base transition-all ${
                     copiedWa
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-700/30'
-                      : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-700/25'
+                      ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-700/30'
+                      : 'bg-teal-600 hover:bg-teal-700 text-white shadow-xl shadow-teal-700/25'
                   }`}
                 >
                   {copiedWa ? (
                     <>
-                      <Check className="w-5 h-5 stroke-[3]" />
+                      <Check className="w-6 h-6 stroke-[3]" />
                       <span>BERHASIL DISALIN KE CLIPBOARD!</span>
                     </>
                   ) : (
@@ -1541,14 +1583,14 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
         </div>
       )}
 
-      {/* MOBILE BOTTOM BAR (NAVIGASI KHUSUS HP RAMAH IBU-IBU) */}
+      {/* MOBILE BOTTOM BAR (NAVIGASI KHUSUS HP) */}
       <nav className="mobile-bottom-bar no-print">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`bottom-tab-item ${activeTab === 'dashboard' ? 'active' : ''}`}
         >
           <Users />
-          <span>Murid</span>
+          <span>25 Murid</span>
         </button>
 
         <button
@@ -1559,17 +1601,17 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
               amount: 200000,
               date: new Date().toISOString().split('T')[0],
               paymentMethod: 'Transfer Mandiri',
-              note: 'Trf ke Rek Mandiri Kas',
+              note: '',
               customStudentName: '',
             });
             setIsDepositModalOpen(true);
           }}
-          className="bottom-tab-item text-emerald-700"
+          className="bottom-tab-item text-teal-800"
         >
-          <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center -mt-4 shadow-md shadow-emerald-700/30">
-            <PlusCircle className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-full bg-amber-400 text-teal-950 flex items-center justify-center -mt-6 shadow-lg shadow-amber-400/40 border-2 border-white">
+            <PlusCircle className="w-7 h-7 stroke-[2.5]" />
           </div>
-          <span className="font-extrabold text-emerald-700 text-[11px] mt-0.5">Setor</span>
+          <span className="font-black text-teal-950 text-[11px] mt-0.5">Setor</span>
         </button>
 
         <button
@@ -1590,7 +1632,7 @@ _Jazakumullahu khairan katsiran atas kerja sama dan dukungannya._ 💐`;
 
         <button
           onClick={() => setIsWaModalOpen(true)}
-          className="bottom-tab-item text-teal-700"
+          className="bottom-tab-item text-emerald-700"
         >
           <Send />
           <span>WA</span>
