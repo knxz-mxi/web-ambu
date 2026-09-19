@@ -44,7 +44,8 @@ import {
   Share2,
   Key,
   Target,
-  TrendingUp
+  TrendingUp,
+  Smartphone,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -142,6 +143,11 @@ export default function HomePage() {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [newAdminPin, setNewAdminPin] = useState('');
 
+  // PWA Add to Home Screen (Layar Utama HP) State
+  const [isInstallNoticeVisible, setIsInstallNoticeVisible] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallGuideModalOpen, setIsInstallGuideModalOpen] = useState(false);
+
   // Boomer font mode
   const [isBoomerMode, setIsBoomerMode] = useState(false);
 
@@ -236,7 +242,41 @@ export default function HomePage() {
     } else {
       setIsLoginModalOpen(true);
     }
+
+    // PWA: Check if previously dismissed or already running as standalone app
+    const pwaDismissed = localStorage.getItem('ambu_pwa_dismissed');
+    if (pwaDismissed === 'true' || window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstallNoticeVisible(false);
+    }
+
+    const pwaHandler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallNoticeVisible(true);
+    };
+    window.addEventListener('beforeinstallprompt', pwaHandler);
+    return () => window.removeEventListener('beforeinstallprompt', pwaHandler);
   }, []);
+
+  // PWA Install Handlers
+  const handleInstallPwa = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        showToast('Aplikasi Kas 4B berhasil dipasang di HP Bunda! 🎉', 'success');
+        setIsInstallNoticeVisible(false);
+        setDeferredPrompt(null);
+      }
+    } else {
+      setIsInstallGuideModalOpen(true);
+    }
+  };
+
+  const dismissInstallNotice = () => {
+    setIsInstallNoticeVisible(false);
+    localStorage.setItem('ambu_pwa_dismissed', 'true');
+  };
 
   const toggleBoomerMode = () => {
     const next = !isBoomerMode;
@@ -837,11 +877,11 @@ Powered by code by MXI CODES`;
 
       {/* TOP HEADER */}
       <header className="top-header no-print">
-        <div className="container-app flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="container-app flex items-center justify-between gap-1.5 max-w-full">
+          <div className="flex items-center gap-2 min-w-0 flex-shrink">
             <motion.div
               whileHover={{ rotate: 5, scale: 1.05 }}
-              className="relative w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-white shadow-md border-2 border-teal-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden"
+              className="relative w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-xl sm:rounded-2xl bg-white shadow-md border-2 border-teal-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden"
             >
               <img
                 src="/logo.png"
@@ -849,27 +889,38 @@ Powered by code by MXI CODES`;
                 className="w-full h-full object-contain"
               />
             </motion.div>
-            <div>
-              <h1 className="text-sm md:text-lg font-black text-slate-900 leading-tight flex items-center gap-1">
-                Kas & THR Kelas 4B <span className="inline-block animate-bounce">🌸</span>
+            <div className="min-w-0">
+              <h1 className="text-xs sm:text-sm md:text-base font-black text-slate-900 leading-tight flex items-center gap-1 truncate">
+                Kas & THR 4B <span className="inline-block animate-bounce">🌸</span>
               </h1>
-              <p className="text-[10px] md:text-xs text-slate-500 font-bold">
-                Tahun Ajaran 2026–2027 • SD Islam
+              <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">
+                SD Islam 2026–2027
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 md:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Install PWA Button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleInstallPwa}
+              className="px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-amber-100 text-amber-950 border border-amber-300 flex items-center gap-1 shadow-sm"
+              title="Pasang di Layar Utama / Beranda HP"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span className="hidden sm:inline">Pasang App</span>
+            </motion.button>
+
             {/* User Login Indicator */}
             {userRole === 'MAMA' && currentMamaStudent ? (
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-sm"
+                className="px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-sm"
                 title="Klik untuk ganti anak"
               >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="truncate max-w-[85px] md:max-w-none">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="truncate max-w-[70px] sm:max-w-none">
                   Mama {currentMamaStudent.nickname}
                 </span>
               </motion.button>
@@ -878,11 +929,11 @@ Powered by code by MXI CODES`;
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-sm"
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-sm"
                   title="Klik untuk ganti mode"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
-                  <span>Pengurus</span>
+                  <ShieldAlert className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                  <span className="hidden xs:inline">Pengurus</span>
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
@@ -890,21 +941,21 @@ Powered by code by MXI CODES`;
                     setNewAdminPin('');
                     setIsPinModalOpen(true);
                   }}
-                  className="px-2 py-1.5 md:px-2.5 md:py-2 rounded-xl text-xs font-black bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 flex items-center gap-1 transition-all"
+                  className="p-1.5 sm:px-2 sm:py-1.5 rounded-xl text-xs font-black bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 flex items-center gap-1 transition-all"
                   title="Ubah PIN Kata Sandi Pengurus"
                 >
-                  <Key className="w-3.5 h-3.5 text-purple-600" />
-                  <span className="hidden sm:inline">PIN</span>
+                  <Key className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span className="hidden md:inline">PIN</span>
                 </motion.button>
               </div>
             ) : (
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1"
+                className="px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1"
               >
-                <LogIn className="w-3.5 h-3.5 text-teal-700" />
-                <span>Pilih Mama</span>
+                <LogIn className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                <span className="text-[11px] sm:text-xs">Pilih Mama</span>
               </motion.button>
             )}
 
@@ -912,26 +963,25 @@ Powered by code by MXI CODES`;
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={toggleBoomerMode}
-              className={`px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black flex items-center gap-1 border ${
+              className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black flex items-center gap-1 border ${
                 isBoomerMode
                   ? 'bg-amber-100 text-amber-900 border-amber-300'
                   : 'bg-white text-slate-700 border-slate-300'
               }`}
               title="Perbesar teks"
             >
-              <Eye className="w-3.5 h-3.5 text-amber-600" />
-              <span className="hidden sm:inline">Huruf:</span>
-              <span>{isBoomerMode ? 'Besar' : 'Normal'}</span>
+              <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="hidden md:inline">{isBoomerMode ? 'Huruf: Besar' : 'Huruf: Normal'}</span>
             </motion.button>
 
             {/* Export Excel Button */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleExportExcel}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black flex items-center gap-1 shadow-sm"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shadow-sm"
               title="Unduh Laporan Excel (.xlsx)"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden md:inline">Export Excel</span>
             </motion.button>
           </div>
@@ -939,7 +989,7 @@ Powered by code by MXI CODES`;
       </header>
 
       {/* MAIN CONTAINER */}
-      <main className="container-app py-3 md:py-4 space-y-4">
+      <main className="container-app py-3 md:py-4 space-y-3.5 max-w-full overflow-hidden">
 
         {/* WELCOME BANNER KHUSUS MAMA */}
         {userRole === 'MAMA' && currentMamaStudent && myChildStatus ? (
@@ -1011,6 +1061,52 @@ Powered by code by MXI CODES`;
           </motion.div>
         )}
         
+        {/* PWA: NOTICE TAMBAH KE BERANDA HP (SEPERTI APLIKASI) */}
+        {isInstallNoticeVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-800 text-white rounded-2xl p-3 md:p-3.5 shadow-md border border-teal-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 relative overflow-hidden"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-400 text-teal-950 flex items-center justify-center font-black text-lg shrink-0 shadow-sm">
+                📲
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-black text-xs md:text-sm text-amber-300">
+                    Bisa Ditambah ke Layar Utama / Beranda HP!
+                  </span>
+                  <span className="text-[9px] bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 rounded font-bold border border-emerald-400/30">
+                    Langsung Klik
+                  </span>
+                </div>
+                <p className="text-[11px] text-teal-100 font-medium mt-0.5 leading-snug">
+                  Bisa dibuka langsung seperti aplikasi HP Bunda, tanpa perlu repot ketik alamat web lagi.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleInstallPwa}
+                className="bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-teal-950 font-black px-3 py-1.5 md:py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+              >
+                <Smartphone className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{deferredPrompt ? 'Pasang Sekarang 📲' : 'Cara Tambah ke Beranda 💡'}</span>
+              </motion.button>
+              <button
+                onClick={dismissInstallNotice}
+                className="text-white/60 hover:text-white p-1 rounded-lg text-xs"
+                title="Tutup pemberitahuan"
+              >
+                ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* HERO CARD COMPACT */}
         <motion.section
           initial={{ opacity: 0, y: 15 }}
@@ -1177,11 +1273,11 @@ Powered by code by MXI CODES`;
         </motion.section>
 
         {/* NAVIGATION TABS */}
-        <section className="no-print flex items-center justify-between border-b-2 border-slate-200 pb-1">
-          <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none w-full">
+        <section className="no-print flex items-center justify-between border-b-2 border-slate-200 pb-1 w-full max-w-full overflow-hidden">
+          <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none w-full max-w-full">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'dashboard'
                   ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -1193,7 +1289,7 @@ Powered by code by MXI CODES`;
 
             <button
               onClick={() => setActiveTab('ledger')}
-              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'ledger'
                   ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -1205,7 +1301,7 @@ Powered by code by MXI CODES`;
 
             <button
               onClick={() => setActiveTab('info')}
-              className={`px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'info'
                   ? 'bg-teal-700 text-white shadow-md shadow-teal-800/20'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -1217,10 +1313,11 @@ Powered by code by MXI CODES`;
 
             <button
               onClick={handleExportExcel}
-              className="ml-auto px-3.5 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm whitespace-nowrap"
+              className="ml-auto px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm whitespace-nowrap shrink-0"
             >
               <Download className="w-4 h-4" />
-              <span>Unduh Excel (.xlsx)</span>
+              <span className="hidden sm:inline">Unduh Excel (.xlsx)</span>
+              <span className="sm:hidden">Excel</span>
             </button>
           </div>
         </section>
@@ -1236,22 +1333,22 @@ Powered by code by MXI CODES`;
             <motion.div
               initial={{ y: 8, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-gradient-to-r from-teal-900 via-teal-950 to-emerald-950 text-white p-3.5 md:p-4 rounded-3xl shadow-lg border border-teal-600/30 space-y-3"
+              className="bg-gradient-to-r from-teal-900 via-teal-950 to-emerald-950 text-white p-3.5 md:p-4 rounded-3xl shadow-lg border border-teal-600/30 space-y-3 w-full max-w-full overflow-hidden"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold shrink-0">
                     <Target className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h4 className="font-black text-xs md:text-sm text-white flex items-center gap-1.5">
+                  <div className="min-w-0">
+                    <h4 className="font-black text-xs md:text-sm text-white flex items-center gap-1.5 truncate">
                       <span>Target Kas & THR Kelas 4B</span>
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                     </h4>
-                    <p className="text-[10px] text-teal-200">25 Murid • Transparansi Semester 1 & Lebaran</p>
+                    <p className="text-[10px] text-teal-200 truncate">25 Murid • Transparansi TA 2026/2027</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-black bg-amber-400 text-teal-950 px-2.5 py-0.5 rounded-full shadow-sm">
+                <span className="text-[10px] font-black bg-amber-400 text-teal-950 px-2.5 py-0.5 rounded-full shadow-sm shrink-0">
                   TA 2026/2027
                 </span>
               </div>
@@ -1306,7 +1403,7 @@ Powered by code by MXI CODES`;
             </motion.div>
 
             {/* Search & Filters */}
-            <div className="bg-white p-3 md:p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div className="bg-white p-3 md:p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2 w-full max-w-full overflow-hidden">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -1319,7 +1416,7 @@ Powered by code by MXI CODES`;
               </div>
 
               {/* Status Filters */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none w-full max-w-full">
                 <button
                   onClick={() => setStudentFilter('ALL')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
@@ -1417,7 +1514,7 @@ Powered by code by MXI CODES`;
                         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                           Kas Rutin
                         </div>
-                        <div className="mt-0.5 flex items-center justify-between">
+                        <div className="mt-0.5 flex items-center justify-between gap-1 flex-wrap">
                           {s.kasLunas ? (
                             <span className="badge badge-success text-[10px] py-0.5 px-1.5 flex items-center gap-1">
                               <span>✅ Lunas</span>
@@ -1441,7 +1538,7 @@ Powered by code by MXI CODES`;
                               <Clock className="w-2.5 h-2.5" /> Belum
                             </span>
                           )}
-                          <span className="text-[11px] font-black text-slate-700">
+                          <span className="text-[11px] font-black text-slate-700 shrink-0">
                             {s.totalKasPaid > 0 ? `Rp ${(s.totalKasPaid / 1000).toFixed(0)}k` : 'Rp 0'}
                           </span>
                         </div>
@@ -1451,7 +1548,7 @@ Powered by code by MXI CODES`;
                         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                           Uang THR
                         </div>
-                        <div className="mt-0.5 flex items-center justify-between">
+                        <div className="mt-0.5 flex items-center justify-between gap-1 flex-wrap">
                           {s.thrLunas ? (
                             <span className="badge badge-success text-[10px] py-0.5 px-1.5 flex items-center gap-1">
                               <span>✅ Lunas</span>
@@ -1470,7 +1567,7 @@ Powered by code by MXI CODES`;
                               <Clock className="w-2.5 h-2.5" /> Belum
                             </span>
                           )}
-                          <span className="text-[11px] font-black text-slate-700">
+                          <span className="text-[11px] font-black text-slate-700 shrink-0">
                             {s.totalThrPaid > 0 ? `Rp ${(s.totalThrPaid / 1000).toFixed(0)}k` : 'Rp 0'}
                           </span>
                         </div>
@@ -1783,6 +1880,34 @@ Powered by code by MXI CODES`;
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* PWA GUIDE CARD IN PANDUAN */}
+            <div className="bg-gradient-to-r from-teal-900 to-emerald-900 text-white rounded-3xl p-4 border border-teal-500/30 shadow-md space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-teal-950 flex items-center justify-center font-bold text-lg">
+                    📲
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm md:text-base text-amber-300">
+                      Pasang di Layar Utama HP
+                    </h3>
+                    <p className="text-[11px] text-teal-100 font-medium">Buka langsung seperti aplikasi</p>
+                  </div>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsInstallGuideModalOpen(true)}
+                  className="bg-amber-400 hover:bg-amber-300 text-teal-950 font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-sm"
+                >
+                  <span>Lihat Cara</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </motion.button>
+              </div>
+              <p className="text-xs text-teal-100/90 leading-relaxed">
+                Bunda bisa menambahkan web ini ke beranda HP agar tidak perlu repot mencari link di WhatsApp atau mengetik alamat web lagi setiap ingin cek kas!
+              </p>
             </div>
           </motion.section>
         )}
@@ -3053,10 +3178,10 @@ Powered by code by MXI CODES`;
         {isPinModalOpen && (
           <div className="modal-overlay z-[99999]">
             <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
+              initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              className="modal-content p-5 max-w-sm"
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="modal-content p-5 md:p-6 max-w-sm"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -3126,6 +3251,79 @@ Powered by code by MXI CODES`;
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 9: PANDUAN TAMBAH KE LAYAR UTAMA (PWA GUIDE) */}
+      <AnimatePresence>
+        {isInstallGuideModalOpen && (
+          <div className="modal-overlay z-[99999]">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="modal-content p-5 md:p-6 max-w-md bg-white rounded-3xl shadow-2xl space-y-3.5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xl">
+                    📲
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-sm md:text-base">
+                      Cara Pasang di Beranda HP
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold">Buka langsung tanpa repot ketik web lagi</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsInstallGuideModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs text-slate-700">
+                {/* iPhone / Safari */}
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <div className="font-black text-slate-900 flex items-center gap-1.5 text-xs text-teal-900">
+                    <span>🍎 Pengguna iPhone / iPad (Safari):</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600 font-medium leading-relaxed">
+                    <li>Buka web ini di browser <strong>Safari</strong>.</li>
+                    <li>Sentuh tombol <strong>Share / Bagikan (kotak panah ke atas ⎋)</strong> di menu bawah Safari.</li>
+                    <li>Gulir ke bawah, pilih <strong>"Tambahkan ke Layar Utama"</strong> (<em>Add to Home Screen</em>).</li>
+                    <li>Klik <strong>"Tambah"</strong> di pojok kanan atas. Icon Kas 4B langsung siap di layar HP Bunda!</li>
+                  </ol>
+                </div>
+
+                {/* Android / Chrome */}
+                <div className="p-3 rounded-2xl bg-teal-50/60 border border-teal-200 space-y-1.5">
+                  <div className="font-black text-slate-900 flex items-center gap-1.5 text-xs text-teal-900">
+                    <span>🤖 Pengguna Android (Chrome / Samsung):</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600 font-medium leading-relaxed">
+                    <li>Sentuh tombol <strong>Titik Tiga (⋮)</strong> di pojok kanan atas Chrome.</li>
+                    <li>Pilih menu <strong>"Tambahkan ke Layar Utama"</strong> atau <strong>"Install Aplikasi"</strong>.</li>
+                    <li>Klik <strong>"Tambah / Install"</strong>. Icon Kas 4B langsung muncul di layar HP Bunda!</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={() => {
+                    setIsInstallGuideModalOpen(false);
+                    dismissInstallNotice();
+                  }}
+                  className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-black text-xs rounded-xl shadow-md shadow-teal-800/20"
+                >
+                  Siap, Saya Mengerti! 👍
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

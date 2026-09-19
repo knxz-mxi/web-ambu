@@ -4,18 +4,24 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Kas & THR Kelas 4B - SD Islam (2026/2027)',
   description: 'Aplikasi pencatatan dan transparansi kas kelas & uang THR khusus wali murid dan pengurus Kelas 4B. Mudah digunakan di HP, tinggal submit!',
+  manifest: '/manifest.json',
   icons: {
     icon: '/logo.png',
     apple: '/logo.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Kas Kelas 4B',
   },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,
-  userScalable: true,
-  themeColor: '#0f766e',
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#0d9488',
 };
 
 export default function RootLayout({
