@@ -1677,22 +1677,42 @@ Powered by code by MXI CODES`;
 
                     {/* Quick Setor Buttons */}
                     <div className="flex items-center gap-1.5 pt-0.5">
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
-                      >
-                        <PlusCircle className="w-3 h-3" /> Setor
-                      </motion.button>
+                      {(!currentMamaStudent || isMyChild || userRole === 'BENDAHARA') ? (
+                        <>
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
+                            className={`flex-1 ${
+                              isMyChild
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 px-3 rounded-xl shadow-md shadow-emerald-600/30'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black'
+                            } text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all`}
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>{isMyChild ? '+ Setor Kas Ananda' : 'Setor'}</span>
+                          </motion.button>
 
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setSelectedStudentDetail(s)}
-                        className="px-2.5 py-1.5 rounded-lg font-black text-[11px] border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center justify-center gap-1 shadow-sm transition-all"
-                        title="Lihat riwayat lengkap & kuitansi"
-                      >
-                        <FileText className="w-3 h-3 text-teal-600" /> Riwayat
-                      </motion.button>
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setSelectedStudentDetail(s)}
+                            className="px-2.5 py-1.5 rounded-lg font-black text-[11px] border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center justify-center gap-1 shadow-sm transition-all"
+                            title="Lihat riwayat lengkap & kuitansi"
+                          >
+                            <FileText className="w-3 h-3 text-teal-600" /> Riwayat
+                          </motion.button>
+                        </>
+                      ) : (
+                        /* Untuk murid lain jika Bunda sudah pilih anaknya: HILANGKAN TOMBOL SETOR AGAR TIDAK SALAH SETOR! */
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setSelectedStudentDetail(s)}
+                          className="w-full py-1.5 px-3 rounded-xl font-bold text-[11px] border border-slate-200 text-slate-600 bg-slate-50 hover:bg-teal-50 hover:text-teal-800 hover:border-teal-200 flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                          title="Lihat riwayat pembayaran ananda ini"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Lihat Riwayat & Kuitansi</span>
+                        </motion.button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -2356,13 +2376,19 @@ Powered by code by MXI CODES`;
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setIsSelectingStudentInModal(true)}
-                        className="text-xs font-black text-teal-800 bg-white border border-teal-300 hover:bg-teal-100 px-3 py-1.5 rounded-xl shrink-0"
-                      >
-                        Ganti Anak
-                      </button>
+                      {userRole === 'MAMA' ? (
+                        <span className="text-[10px] font-black bg-teal-600 text-white px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1 shadow-xs">
+                          <Lock className="w-3 h-3" /> Terkunci (Anak Bunda)
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsSelectingStudentInModal(true)}
+                          className="text-xs font-black text-teal-800 bg-white border border-teal-300 hover:bg-teal-100 px-3 py-1.5 rounded-xl shrink-0"
+                        >
+                          Ganti Anak
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2 border-2 border-teal-200 p-2.5 rounded-2xl bg-slate-50/50">
@@ -3343,29 +3369,41 @@ Powered by code by MXI CODES`;
 
               {/* Bottom Actions */}
               <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    const st = selectedStudentDetail;
-                    setSelectedStudentDetail(null);
-                    handleOpenDepositForStudent(st, 'KAS_MASUK');
-                  }}
-                  className="bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
-                >
-                  <PlusCircle className="w-3.5 h-3.5" /> Setor Kas
-                </motion.button>
+                {(!currentMamaStudent || selectedStudentDetail.id === currentMamaStudent?.id || userRole === 'BENDAHARA') ? (
+                  <>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => {
+                        const st = selectedStudentDetail;
+                        setSelectedStudentDetail(null);
+                        handleOpenDepositForStudent(st, 'KAS_MASUK');
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" /> Setor Kas
+                    </motion.button>
 
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    const st = selectedStudentDetail;
-                    setSelectedStudentDetail(null);
-                    handleOpenDepositForStudent(st, 'THR_MASUK');
-                  }}
-                  className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
-                >
-                  <Gift className="w-3.5 h-3.5" /> Setor THR
-                </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => {
+                        const st = selectedStudentDetail;
+                        setSelectedStudentDetail(null);
+                        handleOpenDepositForStudent(st, 'THR_MASUK');
+                      }}
+                      className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
+                    >
+                      <Gift className="w-3.5 h-3.5" /> Setor THR
+                    </motion.button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStudentDetail(null)}
+                    className="col-span-2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                  >
+                    Tutup Riwayat Ananda
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
