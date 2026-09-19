@@ -74,3 +74,7 @@ Untuk menyimpan data secara permanen di cloud (database PostgreSQL gratis dari S
    - Masuk ke **Settings** > **Environment Variables**.
    - Tambahkan variabel `DATABASE_URL` dengan nilai connection string di atas.
 4. Lakukan *Redeploy*. Aplikasi otomatis beralih menggunakan database PostgreSQL!
+
+---
+
+Developed & Maintained by **MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA**

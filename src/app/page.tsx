@@ -404,7 +404,7 @@ Diterima & Diverifikasi oleh:
 *${receipt.pic}*
 _Dokumen sah & tercatat otomatis dalam sistem pembukuan 4 B Bilal Bin Rabah._
 
-Powered by code by MXI CODES`;
+Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
   };
 
   // Salin Teks Kuitansi ke Clipboard
@@ -875,7 +875,7 @@ ${lines.join('\n')}
 💳 *BNI:* 2102403976 (Nia Mulyawati)
 Konfirmasi setor: Silakan submit di web / kirim bukti ya Bunda 🙏
 
-Powered by code by MXI CODES`;
+Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
   }, [studentPaymentStatus, stats]);
 
   // Generate WhatsApp Message (Format Laporan Lengkap + Saldo)
@@ -926,7 +926,7 @@ Konfirmasi setor: Japri bukti transfer ya Bunda/Mama 🙏
 
 _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐
 
-Powered by code by MXI CODES`;
+Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
   }, [studentPaymentStatus, stats]);
 
   const copyCurrentWaMessage = () => {
@@ -2120,8 +2120,8 @@ Powered by code by MXI CODES`;
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             <span>Buku Kas & Uang THR Kelas 4 B Bilal Bin Rabah • SD Islam 2026/2027</span>
           </div>
-          <div className="text-[11px] font-mono font-black text-teal-800 tracking-wider">
-            Powered by code by MXI CODES
+          <div className="text-[11px] font-mono font-bold text-teal-800 tracking-wider">
+            MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA
           </div>
         </footer>
       </main>
@@ -2310,7 +2310,7 @@ Powered by code by MXI CODES`;
                 </div>
 
                 <div className="pt-2 text-center text-[10px] text-slate-400 font-mono">
-                  Powered by code by MXI CODES
+                  MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA
                 </div>
               </form>
             </motion.div>
@@ -3181,7 +3181,7 @@ Powered by code by MXI CODES`;
                 </div>
 
                 <div className="text-center pt-2.5 border-t border-slate-100 text-[10px] text-slate-400 font-mono">
-                  Powered by code by MXI CODES
+                  MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA
                 </div>
               </div>
 
