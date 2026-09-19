@@ -380,7 +380,7 @@ export default function HomePage() {
 
   // Helper: Format Teks Kuitansi Resmi
   const getReceiptFormattedText = (receipt: ReceiptItem) => {
-    return `*KUITANSI DIGITAL RESMI KAS 4B BILAL BIN RABAH* 🧾
+    return `*KUITANSI DIGITAL RESMI KAS 4 B BILAL BIN RABAH* 🧾
 *PERIODE MEI 2026 S/D MEI 2027*
 ━━━━━━━━━━━━━━━━━━━━
 No. Kuitansi: *${receipt.receiptNo}*
@@ -391,7 +391,7 @@ Telah Terima Dari:
 (Ananda *${receipt.studentName}* - Absen #${receipt.noAbsen})
 
 Untuk Pembayaran:
-*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin 4B Bilal Bin Rabah' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
+*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin 4 B Bilal Bin Rabah' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
 
 Metode Bayar: *${receipt.paymentMethod}*
 
@@ -402,7 +402,7 @@ Status: *LUNAS & TERVERIFIKASI ✓*
 ━━━━━━━━━━━━━━━━━━━━
 Diterima & Diverifikasi oleh:
 *${receipt.pic}*
-_Dokumen sah & tercatat otomatis dalam sistem pembukuan 4B Bilal Bin Rabah._
+_Dokumen sah & tercatat otomatis dalam sistem pembukuan 4 B Bilal Bin Rabah._
 
 Powered by code by MXI CODES`;
   };
@@ -860,7 +860,7 @@ Powered by code by MXI CODES`;
     const lunasCount = studentPaymentStatus.filter((s) => s.kasLunas).length;
     const bertahapCount = studentPaymentStatus.filter((s) => s.kasBertahap).length;
 
-    return `*LAPORAN UANG KAS. KELAS 4B.BILAL BIN RABAH*
+    return `*LAPORAN UANG KAS. KELAS 4 B BILAL BIN RABAH*
 *PERIODE MEI 2026 S/D MEI 2027*
 
 *BNI. NO.REKENING. 2102403976. a/n Nia Mulyawati*
@@ -890,7 +890,7 @@ Powered by code by MXI CODES`;
     const lunasKasList = studentPaymentStatus.filter((s) => s.kasLunas);
     const belumKasList = studentPaymentStatus.filter((s) => !s.kasLunas);
 
-    return `*LAPORAN KAS & THR KELAS 4B* 🌸
+    return `*LAPORAN KAS & THR KELAS 4 B BILAL BIN RABAH* 🌸
 *SD ISLAM TAHUN AJARAN 2026-2027*
 Per: ${todayStr}
 
@@ -981,13 +981,13 @@ Powered by code by MXI CODES`;
             >
               <img
                 src="/logo.png"
-                alt="Logo Kelas 4B"
+                alt="Logo Kelas 4 B Bilal Bin Rabah"
                 className="w-full h-full object-contain"
               />
             </motion.div>
             <div className="min-w-0">
               <h1 className="text-xs sm:text-sm md:text-base font-black text-slate-900 leading-tight flex items-center gap-1 truncate">
-                Kas & THR 4B Bilal Bin Rabah <span className="inline-block animate-bounce">🌸</span>
+                Kas & THR 4 B Bilal Bin Rabah <span className="inline-block animate-bounce">🌸</span>
               </h1>
               <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">
                 Periode Mei 2026 s/d Mei 2027 • SD Islam
@@ -1215,7 +1215,7 @@ Powered by code by MXI CODES`;
               <div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-teal-100 text-[11px] font-bold backdrop-blur-md border border-white/20">
                   <span className="live-dot"></span>
-                  Laporan Transparan Kelas 4B
+                  Laporan Transparan Kelas 4 B Bilal Bin Rabah
                 </div>
                 <h2 className="text-lg md:text-2xl font-black mt-1 tracking-tight">
                   Buku Kas & Uang THR Murid 🌸
@@ -1438,7 +1438,7 @@ Powered by code by MXI CODES`;
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-black text-xs md:text-sm text-white flex items-center gap-1.5 truncate">
-                      <span>Target Kas & THR Kelas 4B</span>
+                      <span>Target Kas & THR Kelas 4 B Bilal Bin Rabah</span>
                       <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                     </h4>
                     <p className="text-[10px] text-teal-200 truncate">25 Murid • Transparansi TA 2026/2027</p>
@@ -1775,7 +1775,7 @@ Powered by code by MXI CODES`;
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span className="text-xs font-black uppercase tracking-wider text-teal-200">
-                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo 4B Bilal Bin Rabah'}
+                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo 4 B Bilal Bin Rabah'}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-teal-100">
@@ -1940,7 +1940,7 @@ Powered by code by MXI CODES`;
                   <tr className="bg-slate-50">
                     <td colSpan={4} className="font-black text-slate-900 text-xs">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span>TOTAL SALDO 4B BILAL BIN RABAH:</span>
+                        <span>TOTAL SALDO 4 B BILAL BIN RABAH:</span>
                         {/* Nominal langsung tampil di layar mobile tanpa perlu geser/scroll kanan */}
                         <span className="sm:hidden font-black text-teal-950 bg-amber-300 border border-amber-400 px-2.5 py-1 rounded-xl text-xs shadow-xs">
                           Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
@@ -1966,7 +1966,7 @@ Powered by code by MXI CODES`;
             <div className="sm:hidden bg-gradient-to-r from-teal-900 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-lg border border-teal-700/50">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300">
-                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo 4B Bilal Bin Rabah'}
+                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo 4 B Bilal Bin Rabah'}
                 </div>
                 <div className="text-lg font-black text-amber-300 mt-0.5">
                   Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
@@ -1998,7 +1998,7 @@ Powered by code by MXI CODES`;
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm md:text-base">
-                    Rekening Kas & THR Kelas 4B
+                    Rekening Kas & THR 4 B Bilal Bin Rabah
                   </h3>
                   <p className="text-[11px] text-slate-500 font-medium">Tujuan transfer uang kas & THR</p>
                 </div>
@@ -2092,7 +2092,7 @@ Powered by code by MXI CODES`;
                   <div>
                     <div className="font-black text-slate-900">Salin Rekap ke WhatsApp Grup</div>
                     <p className="text-slate-500 text-[11px] mt-0.5">
-                      Pengurus tinggal klik tombol <strong>"Kirim ke WA"</strong> untuk langsung meng-copy format pesan cantik ke grup WhatsApp kelas 4B.
+                      Pengurus tinggal klik tombol <strong>"Kirim ke WA"</strong> untuk langsung meng-copy format pesan cantik ke grup WhatsApp Kelas 4 B Bilal Bin Rabah.
                     </p>
                   </div>
                 </div>
@@ -2133,7 +2133,7 @@ Powered by code by MXI CODES`;
         <footer className="mt-10 mb-24 md:mb-8 py-6 border-t border-teal-100/70 text-center space-y-1.5 no-print">
           <div className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Buku Kas & Uang THR Kelas 4B • SD Islam 2026/2027</span>
+            <span>Buku Kas & Uang THR Kelas 4 B Bilal Bin Rabah • SD Islam 2026/2027</span>
           </div>
           <div className="text-[11px] font-mono font-black text-teal-800 tracking-wider">
             Powered by code by MXI CODES
@@ -2160,7 +2160,7 @@ Powered by code by MXI CODES`;
                 >
                   <img
                     src="/logo.png"
-                    alt="Logo Kelas 4B"
+                    alt="Logo Kelas 4 B Bilal Bin Rabah"
                     className="w-full h-full object-contain"
                   />
                 </motion.div>
@@ -2168,7 +2168,7 @@ Powered by code by MXI CODES`;
                   Selamat Datang Bunda & Mama! 💖
                 </h3>
                 <p className="text-xs text-slate-500 font-semibold">
-                  Aplikasi Kas & THR Murid Kelas 4B (2026–2027)
+                  Aplikasi Kas & THR Murid Kelas 4 B Bilal Bin Rabah (2026–2027)
                 </p>
               </div>
 
@@ -2362,7 +2362,7 @@ Powered by code by MXI CODES`;
                 {/* 1. VISUAL CUSTOM STUDENT PICKER (NO UGLY BROWSER SELECT!) */}
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    1. Nama Ananda Murid Kelas 4B *
+                    1. Nama Ananda Murid Kelas 4 B Bilal Bin Rabah *
                   </label>
 
                   {/* Selected Card Banner */}
@@ -3100,15 +3100,15 @@ Powered by code by MXI CODES`;
                 <div className="flex items-center gap-3">
                   <img
                     src="/logo.png"
-                    alt="Logo Kelas 4B"
+                    alt="Logo Kelas 4 B Bilal Bin Rabah"
                     className="w-12 h-12 object-contain rounded-xl border border-teal-100 p-0.5 bg-white shadow-sm shrink-0"
                   />
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-wider text-teal-800">
-                      4B BILAL BIN RABAH • PERIODE MEI 2026–2027
+                      4 B BILAL BIN RABAH • PERIODE MEI 2026–2027
                     </div>
                     <h3 className="font-black text-slate-900 text-sm md:text-base leading-tight">
-                      KUITANSI RESMI KAS 4B BILAL BIN RABAH
+                      KUITANSI RESMI KAS 4 B BILAL BIN RABAH
                     </h3>
                     <div className="text-[10px] font-mono text-slate-500 font-bold">
                       No: {currentReceipt.receiptNo}
@@ -3129,7 +3129,7 @@ Powered by code by MXI CODES`;
                 {/* Lunas Stamp Watermark */}
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 rotate-[-18deg] border-4 border-emerald-600/30 text-emerald-700/40 font-black text-2xl md:text-3xl px-4 py-1.5 rounded-2xl pointer-events-none select-none uppercase tracking-widest text-center">
                   <div>LUNAS ✓</div>
-                  <div className="text-[9px] tracking-normal">4B BILAL BIN RABAH</div>
+                  <div className="text-[9px] tracking-normal">4 B BILAL BIN RABAH</div>
                 </div>
 
                 <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
@@ -3142,7 +3142,7 @@ Powered by code by MXI CODES`;
                 <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
                   <span className="text-slate-500 font-medium">No. Absen</span>
                   <span className="col-span-2 font-bold text-teal-800">
-                    #{currentReceipt.noAbsen} • 4B Bilal Bin Rabah
+                    #{currentReceipt.noAbsen} • 4 B Bilal Bin Rabah
                   </span>
                 </div>
 
@@ -3150,7 +3150,7 @@ Powered by code by MXI CODES`;
                   <span className="text-slate-500 font-medium">Untuk Pembayaran</span>
                   <span className="col-span-2 font-black text-teal-950">
                     {currentReceipt.category === 'KAS_MASUK'
-                      ? 'Iuran Kas Rutin 4B Bilal Bin Rabah'
+                      ? 'Iuran Kas Rutin 4 B Bilal Bin Rabah'
                       : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}
                   </span>
                 </div>
@@ -3185,7 +3185,7 @@ Powered by code by MXI CODES`;
                 {/* Signature & PIC */}
                 <div className="flex items-end justify-between pt-1">
                   <div className="text-[10px] text-slate-400">
-                    Dokumen ini sah & tercatat otomatis<br />dalam sistem pembukuan Kas 4B.
+                    Dokumen ini sah & tercatat otomatis<br />dalam sistem pembukuan Kas 4 B Bilal Bin Rabah.
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] text-slate-500">Diterima & Diverifikasi:</div>

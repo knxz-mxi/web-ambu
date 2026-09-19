@@ -35,7 +35,7 @@ export interface AppTransaction {
   createdAt: string;
 }
 
-// Transaksi kas riil Kelas 4B Bilal Bin Rabah Periode Mei 2026 s/d Mei 2027
+// Transaksi kas riil Kelas 4 B Bilal Bin Rabah Periode Mei 2026 s/d Mei 2027
 const initialTransactions: AppTransaction[] = [
   {
     id: 'tx-real-1',

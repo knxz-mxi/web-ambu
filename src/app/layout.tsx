@@ -2,17 +2,18 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kas & THR 4B Bilal Bin Rabah (2026/2027)',
-  description: 'Aplikasi pencatatan dan transparansi kas kelas & uang THR khusus wali murid dan pengurus Kelas 4B Bilal Bin Rabah. Mudah digunakan di HP, tinggal submit!',
+  title: 'Kas & THR 4 B Bilal Bin Rabah (2026/2027)',
+  description: 'Aplikasi pencatatan dan transparansi kas kelas & uang THR khusus wali murid dan pengurus Kelas 4 B Bilal Bin Rabah. Mudah digunakan di HP, tinggal submit!',
   manifest: '/manifest.json',
   icons: {
     icon: '/logo.png',
     apple: '/logo.png',
   },
+  themeColor: '#0f766e',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Kas 4B Bilal',
+    title: 'Kas 4 B Bilal',
   },
 };
 
