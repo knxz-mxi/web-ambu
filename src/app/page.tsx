@@ -96,6 +96,7 @@ export default function HomePage() {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isWaModalOpen, setIsWaModalOpen] = useState(false);
+  const [waFormatTab, setWaFormatTab] = useState<'CONTRENG' | 'LENGKAP'>('CONTRENG');
   const [copiedWa, setCopiedWa] = useState(false);
   const [copiedRek, setCopiedRek] = useState(false);
 
@@ -333,9 +334,15 @@ export default function HomePage() {
     setLoginError('');
 
     if (loginRoleType === 'BENDAHARA') {
-      const storedPin = localStorage.getItem('ambu_admin_pin') || 'bendahara4b';
-      const inputVal = loginPin.trim().toLowerCase();
-      if (inputVal === storedPin.toLowerCase() || inputVal === 'bendahara4b' || inputVal === 'kas4b2026') {
+      const storedPin = localStorage.getItem('ambu_admin_pin') || 'Ambu132';
+      const inputVal = loginPin.trim();
+      if (
+        inputVal.toLowerCase() === storedPin.toLowerCase() ||
+        inputVal.toLowerCase() === 'ambu132' ||
+        inputVal === 'Ambu132' ||
+        inputVal.toLowerCase() === 'bendahara4b' ||
+        inputVal.toLowerCase() === 'kas4b2026'
+      ) {
         setUserRole('BENDAHARA');
         setCurrentMamaStudent(null);
         localStorage.setItem('ambu_user_role', 'BENDAHARA');
@@ -345,7 +352,7 @@ export default function HomePage() {
         showToast('Selamat datang Bendahara / Pengurus Kelas 4B! 📋', 'success');
         confetti({ particleCount: 60, spread: 60 });
       } else {
-        setLoginError('Kata sandi pengurus salah. Silakan periksa kembali atau hubungi bendahara utama.');
+        setLoginError('Kata sandi pengurus salah. Silakan periksa kembali.');
       }
       return;
     }
@@ -413,19 +420,47 @@ export default function HomePage() {
       );
       const totalKasPaid = kasTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const kasLunas = totalKasPaid >= 200000;
+      const kasBertahap = totalKasPaid > 0 && !kasLunas;
+
+      let lastKasDateFormatted = '';
+      if (kasTxList.length > 0) {
+        const sortedKas = [...kasTxList].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        const d = new Date(sortedKas[0].date);
+        if (!isNaN(d.getTime())) {
+          lastKasDateFormatted = `${d.getDate()}/${d.getMonth() + 1}`;
+        }
+      }
 
       const thrTxList = transactions.filter(
         (t) => t.studentId === s.id && t.category === 'THR_MASUK'
       );
       const totalThrPaid = thrTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const thrLunas = totalThrPaid >= 100000;
+      const thrBertahap = totalThrPaid > 0 && !thrLunas;
+
+      let lastThrDateFormatted = '';
+      if (thrTxList.length > 0) {
+        const sortedThr = [...thrTxList].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        const d = new Date(sortedThr[0].date);
+        if (!isNaN(d.getTime())) {
+          lastThrDateFormatted = `${d.getDate()}/${d.getMonth() + 1}`;
+        }
+      }
 
       return {
         ...s,
         totalKasPaid,
         kasLunas,
+        kasBertahap,
+        lastKasDateFormatted,
         totalThrPaid,
         thrLunas,
+        thrBertahap,
+        lastThrDateFormatted,
       };
     });
   }, [students, transactions]);
@@ -668,7 +703,46 @@ export default function HomePage() {
     }
   };
 
-  // Generate WhatsApp Message
+  // Generate WhatsApp Contreng Message (Format Khusus Permintaan Emak-emak Grup WA)
+  const waContrengText = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    });
+
+    const lines = studentPaymentStatus.map((s) => {
+      let mark = '';
+      if (s.kasLunas) {
+        mark = s.lastKasDateFormatted ? ` ✅ ${s.lastKasDateFormatted}` : ' ✅';
+      } else if (s.kasBertahap) {
+        const nominalK = s.totalKasPaid >= 1000 ? (s.totalKasPaid / 1000).toFixed(0) : String(s.totalKasPaid);
+        mark = s.lastKasDateFormatted ? ` 👍🏻 ${s.lastKasDateFormatted}. Rp.${nominalK}` : ` 👍🏻 Rp.${nominalK}`;
+      }
+      return `${s.no}. ${s.fullName} (Mama ${s.nickname})${mark}`;
+    });
+
+    const lunasCount = studentPaymentStatus.filter((s) => s.kasLunas).length;
+    const bertahapCount = studentPaymentStatus.filter((s) => s.kasBertahap).length;
+
+    return `*DAFTAR IURAN KAS KELAS 4B* 🌸
+*SD ISLAM TAHUN AJARAN 2026/2027*
+📅 Update per: ${todayStr}
+
+${lines.join('\n')}
+
+✅ : Lunas (${lunasCount} Anak)
+👍🏻 : Bertahap (${bertahapCount} Anak)
+
+━━━━━━━━━━━━━━━━━━━━
+💰 *Total Kas Terkumpul:* Rp ${stats.totalKasMasuk.toLocaleString('id-ID')}
+💳 *Bank Mandiri:* 1270004638738 (Mama Bia)
+Konfirmasi setor: Silakan submit di web / kirim bukti ya Bunda 🙏
+
+Powered by code by MXI CODES`;
+  }, [studentPaymentStatus, stats]);
+
+  // Generate WhatsApp Message (Format Laporan Lengkap + Saldo)
   const waReportText = useMemo(() => {
     const todayStr = new Date().toLocaleDateString('id-ID', {
       weekday: 'long',
@@ -697,14 +771,14 @@ Per: ${todayStr}
 ✅ *SUDAH BAYAR KAS (${lunasKasList.length}/25 Anak):*
 ${
   lunasKasList.length > 0
-    ? lunasKasList.map((s, idx) => `${idx + 1}. ${s.nickname} (Lunas)`).join('\n')
+    ? lunasKasList.map((s, idx) => `${idx + 1}. ${s.fullName} (Mama ${s.nickname}) ${s.lastKasDateFormatted ? `[${s.lastKasDateFormatted}]` : '(Lunas)'}`).join('\n')
     : '_Belum ada data_'
 }
 
 ${
   belumKasList.length > 0
-    ? `⏳ *BELUM SETOR KAS (${belumKasList.length} Anak):*\n` +
-      belumKasList.map((s, idx) => `${idx + 1}. ${s.nickname}`).join('\n')
+    ? `⏳ *BELUM LUNAS KAS (${belumKasList.length} Anak):*\n` +
+      belumKasList.map((s, idx) => `${idx + 1}. ${s.fullName} (Mama ${s.nickname})${s.kasBertahap ? ` [👍 Bertahap Rp ${(s.totalKasPaid/1000).toFixed(0)}k]` : ''}`).join('\n')
     : '🎉 *Masya Allah, Semua Murid Sudah Lunas Kas!*'
 }
 
@@ -714,13 +788,16 @@ ${
 a/n Naraya XX (Mama Bia - Bendahara)
 Konfirmasi setor: Japri bukti transfer ya Bunda/Mama 🙏
 
-_Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
+_Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐
+
+Powered by code by MXI CODES`;
   }, [studentPaymentStatus, stats]);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(waReportText);
+  const copyCurrentWaMessage = () => {
+    const textToCopy = waFormatTab === 'CONTRENG' ? waContrengText : waReportText;
+    navigator.clipboard.writeText(textToCopy);
     setCopiedWa(true);
-    showToast('Pesan laporan WhatsApp berhasil disalin! 📲', 'success');
+    showToast('Pesan WhatsApp berhasil disalin! 📲', 'success');
     setTimeout(() => setCopiedWa(false), 2500);
   };
 
@@ -1326,10 +1403,15 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                           <span>{s.fullName}</span>
                           <span className="text-[9px] text-teal-600 font-bold ml-1">Detail ↗</span>
                         </div>
+                        <div className="text-[10px] font-bold text-teal-900 flex items-center gap-1 mt-0.5">
+                          <span className="bg-teal-100/90 text-teal-950 px-1.5 py-0.5 rounded-md text-[10px] font-black">
+                            👩‍👧 Mama {s.nickname}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Status Pills */}
+                    {/* Status Pills: Contreng Lunas / Bertahap / Belum */}
                     <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-100">
                       <div>
                         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
@@ -1337,8 +1419,22 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                         </div>
                         <div className="mt-0.5 flex items-center justify-between">
                           {s.kasLunas ? (
-                            <span className="badge badge-success text-[10px] py-0.5 px-1.5">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Lunas
+                            <span className="badge badge-success text-[10px] py-0.5 px-1.5 flex items-center gap-1">
+                              <span>✅ Lunas</span>
+                              {s.lastKasDateFormatted && (
+                                <span className="font-mono text-[9px] text-emerald-800 bg-emerald-100/80 px-1 rounded font-black">
+                                  {s.lastKasDateFormatted}
+                                </span>
+                              )}
+                            </span>
+                          ) : s.kasBertahap ? (
+                            <span className="badge bg-blue-50 text-blue-900 border border-blue-200 text-[10px] py-0.5 px-1.5 flex items-center gap-1">
+                              <span>👍 Bertahap</span>
+                              {s.lastKasDateFormatted && (
+                                <span className="font-mono text-[9px] text-blue-800 bg-blue-100 px-1 rounded font-black">
+                                  {s.lastKasDateFormatted}
+                                </span>
+                              )}
                             </span>
                           ) : (
                             <span className="badge badge-warning text-[10px] py-0.5 px-1.5">
@@ -1357,8 +1453,17 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                         </div>
                         <div className="mt-0.5 flex items-center justify-between">
                           {s.thrLunas ? (
-                            <span className="badge badge-success text-[10px] py-0.5 px-1.5">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Lunas
+                            <span className="badge badge-success text-[10px] py-0.5 px-1.5 flex items-center gap-1">
+                              <span>✅ Lunas</span>
+                              {s.lastThrDateFormatted && (
+                                <span className="font-mono text-[9px] text-emerald-800 bg-emerald-100/80 px-1 rounded font-black">
+                                  {s.lastThrDateFormatted}
+                                </span>
+                              )}
+                            </span>
+                          ) : s.thrBertahap ? (
+                            <span className="badge bg-amber-50 text-amber-900 border border-amber-200 text-[10px] py-0.5 px-1.5 flex items-center gap-1">
+                              <span>👍 Sebagian</span>
                             </span>
                           ) : (
                             <span className="badge badge-warning text-[10px] py-0.5 px-1.5">
@@ -1681,6 +1786,17 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
             </div>
           </motion.section>
         )}
+
+        {/* FOOTER ATTRIBUTION */}
+        <footer className="mt-10 mb-24 md:mb-8 py-6 border-t border-teal-100/70 text-center space-y-1.5 no-print">
+          <div className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Buku Kas & Uang THR Kelas 4B • SD Islam 2026/2027</span>
+          </div>
+          <div className="text-[11px] font-mono font-black text-teal-800 tracking-wider">
+            Powered by code by MXI CODES
+          </div>
+        </footer>
       </main>
 
       {/* MODAL 0: SELAMAT DATANG & LOGIN SEMENTARA */}
@@ -1864,6 +1980,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   >
                     Tutup
                   </button>
+                </div>
+
+                <div className="pt-2 text-center text-[10px] text-slate-400 font-mono">
+                  Powered by code by MXI CODES
                 </div>
               </form>
             </motion.div>
@@ -2434,7 +2554,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="modal-content p-5 md:p-6"
+              className="modal-content p-4 md:p-6 max-w-lg"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -2445,7 +2565,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     <h3 className="text-base md:text-lg font-black text-slate-900">
                       Format Pesan WhatsApp Grup 📲
                     </h3>
-                    <p className="text-[11px] text-slate-500 font-medium">Tinggal klik salin lalu paste di grup WA</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Pilih format, salin, atau langsung buka di WhatsApp</p>
                   </div>
                 </div>
                 <button
@@ -2456,32 +2576,73 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </button>
               </div>
 
-              <div className="pt-3 space-y-3">
-                <div className="bg-slate-900 text-slate-100 p-3.5 rounded-2xl font-mono text-xs max-h-[300px] overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
-                  {waReportText}
-                </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={copyToClipboard}
-                  className={`w-full font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm md:text-base transition-all ${
-                    copiedWa
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-700/30'
-                      : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-700/25'
+              {/* Format Tabs Switcher */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mt-3 text-xs font-black">
+                <button
+                  type="button"
+                  onClick={() => setWaFormatTab('CONTRENG')}
+                  className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    waFormatTab === 'CONTRENG'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {copiedWa ? (
-                    <>
-                      <Check className="w-4 h-4 stroke-[3]" />
-                      <span>BERHASIL DISALIN KE CLIPBOARD!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      <span>SALIN PESAN UNTUK WA GRUP (1 KLIK)</span>
-                    </>
-                  )}
-                </motion.button>
+                  <span>✅ & 👍🏻 Contreng Grup</span>
+                  <span className="text-[9px] bg-white/20 px-1 rounded">Favorit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWaFormatTab('LENGKAP')}
+                  className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    waFormatTab === 'LENGKAP'
+                      ? 'bg-teal-700 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>📊 Laporan Rinci Saldo</span>
+                </button>
+              </div>
+
+              <div className="pt-2.5 space-y-2.5">
+                <div className="bg-slate-950 text-emerald-300 p-3.5 rounded-2xl font-mono text-xs max-h-[280px] overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner border border-slate-800">
+                  {waFormatTab === 'CONTRENG' ? waContrengText : waReportText}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={copyCurrentWaMessage}
+                    className={`flex-1 font-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs md:text-sm transition-all ${
+                      copiedWa
+                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-700/30'
+                        : 'bg-teal-700 hover:bg-teal-800 text-white shadow-md shadow-teal-800/25'
+                    }`}
+                  >
+                    {copiedWa ? (
+                      <>
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>BERHASIL DISALIN KE CLIPBOARD!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>SALIN FORMAT (1 KLIK)</span>
+                      </>
+                    )}
+                  </motion.button>
+
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      const msg = waFormatTab === 'CONTRENG' ? waContrengText : waReportText;
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs md:text-sm shadow-md shadow-emerald-700/25"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>BUKA DI WA</span>
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -2683,6 +2844,10 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       {currentReceipt.pic}
                     </div>
                   </div>
+                </div>
+
+                <div className="text-center pt-2.5 border-t border-slate-100 text-[10px] text-slate-400 font-mono">
+                  Powered by code by MXI CODES
                 </div>
               </div>
 
@@ -2935,7 +3100,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   <input
                     type="password"
                     required
-                    placeholder="Masukkan PIN baru (misal: mama4b)"
+                    placeholder="Masukkan PIN baru (misal: Ambu132)"
                     value={newAdminPin}
                     onChange={(e) => setNewAdminPin(e.target.value)}
                     className="w-full p-2.5 rounded-xl border-2 border-purple-300 focus:border-purple-600 font-bold text-slate-900 text-sm"
