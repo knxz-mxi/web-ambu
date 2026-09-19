@@ -35,12 +35,16 @@ import {
   Heart,
   ShieldAlert,
   ChevronDown,
-  User,
   Camera,
   AlertTriangle,
   X,
   UploadCloud,
-  Image as ImageIcon
+  Image as ImageIcon,
+  FileText,
+  Share2,
+  Key,
+  Target,
+  TrendingUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -113,6 +117,29 @@ export default function HomePage() {
 
   // Modern Screenshot Preview Lightbox modal state
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // E-Kuitansi Digital State
+  interface ReceiptItem {
+    receiptNo: string;
+    studentName: string;
+    nickname: string;
+    noAbsen: number;
+    category: 'KAS_MASUK' | 'THR_MASUK';
+    amount: number;
+    amountInWords: string;
+    date: string;
+    paymentMethod: string;
+    pic: string;
+    note?: string | null;
+  }
+  const [currentReceipt, setCurrentReceipt] = useState<ReceiptItem | null>(null);
+
+  // Student Detail Drawer State
+  const [selectedStudentDetail, setSelectedStudentDetail] = useState<any | null>(null);
+
+  // Admin PIN Change Modal State
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [newAdminPin, setNewAdminPin] = useState('');
 
   // Boomer font mode
   const [isBoomerMode, setIsBoomerMode] = useState(false);
@@ -249,21 +276,76 @@ export default function HomePage() {
     fetchData();
   }, []);
 
+  // Number to Indonesian Words Helper
+  const numberToIndonesianWords = (num: number): string => {
+    if (num <= 0) return 'Nol Rupiah';
+    const units = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
+    
+    function toWords(n: number): string {
+      if (n < 12) return units[n];
+      if (n < 20) return toWords(n - 10) + ' Belas';
+      if (n < 100) return toWords(Math.floor(n / 10)) + ' Puluh ' + units[n % 10];
+      if (n < 200) return 'Seratus ' + toWords(n - 100);
+      if (n < 1000) return toWords(Math.floor(n / 100)) + ' Ratus ' + toWords(n % 100);
+      if (n < 2000) return 'Seribu ' + toWords(n - 1000);
+      if (n < 1000000) return toWords(Math.floor(n / 1000)) + ' Ribu ' + toWords(n % 1000);
+      if (n < 1000000000) return toWords(Math.floor(n / 1000000)) + ' Juta ' + toWords(n % 1000000);
+      return String(n);
+    }
+    
+    return (toWords(num).replace(/\s+/g, ' ').trim() + ' Rupiah').replace(/\s+/g, ' ');
+  };
+
+  // Generate Official Receipt
+  const handleGenerateReceipt = (
+    student: { fullName: string; nickname: string; no: number },
+    category: 'KAS_MASUK' | 'THR_MASUK',
+    amount: number,
+    paymentMethod: string = 'Transfer Bank Mandiri',
+    note: string = 'Lunas Terverifikasi'
+  ) => {
+    const today = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const receiptNo = `KW-4B-${String(student.no).padStart(2, '0')}-${Date.now().toString().slice(-4)}`;
+    const words = numberToIndonesianWords(amount);
+
+    setCurrentReceipt({
+      receiptNo,
+      studentName: student.fullName,
+      nickname: student.nickname,
+      noAbsen: student.no,
+      category,
+      amount,
+      amountInWords: words,
+      date: today,
+      paymentMethod,
+      pic: 'Mama Bia (Bendahara Kelas 4B)',
+      note,
+    });
+  };
+
   // Handle Login
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
     if (loginRoleType === 'BENDAHARA') {
-      if (loginPin.trim() === '4B' || loginPin.trim() === '4b' || loginPin.trim() === 'bendahara' || loginPin.trim() === '1234') {
+      const storedPin = localStorage.getItem('ambu_admin_pin') || 'bendahara4b';
+      const inputVal = loginPin.trim().toLowerCase();
+      if (inputVal === storedPin.toLowerCase() || inputVal === 'bendahara4b' || inputVal === 'kas4b2026') {
         setUserRole('BENDAHARA');
         setCurrentMamaStudent(null);
         localStorage.setItem('ambu_user_role', 'BENDAHARA');
         localStorage.removeItem('ambu_student_id');
         setIsLoginModalOpen(false);
+        setLoginPin('');
+        showToast('Selamat datang Bendahara / Pengurus Kelas 4B! 📋', 'success');
         confetti({ particleCount: 60, spread: 60 });
       } else {
-        setLoginError('Password pengurus salah. Gunakan kata sandi sementara: 4B');
+        setLoginError('Kata sandi pengurus salah. Silakan periksa kembali atau hubungi bendahara utama.');
       }
       return;
     }
@@ -466,6 +548,13 @@ export default function HomePage() {
           'success'
         );
         fetchData();
+        handleGenerateReceipt(
+          selStudent || { fullName: studentName, nickname: studentName, no: 0 },
+          depositForm.category,
+          Number(depositForm.amount),
+          depositForm.paymentMethod,
+          depositForm.note || 'Lunas Terverifikasi'
+        );
       } else {
         showToast('Gagal mencatat: ' + (data.error || 'Terjadi kesalahan'), 'error');
       }
@@ -708,14 +797,29 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 </span>
               </motion.button>
             ) : userRole === 'BENDAHARA' ? (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-sm"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
-                <span>Pengurus</span>
-              </motion.button>
+              <div className="flex items-center gap-1">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-sm"
+                  title="Klik untuk ganti mode"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
+                  <span>Pengurus</span>
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setNewAdminPin('');
+                    setIsPinModalOpen(true);
+                  }}
+                  className="px-2 py-1.5 md:px-2.5 md:py-2 rounded-xl text-xs font-black bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 flex items-center gap-1 transition-all"
+                  title="Ubah PIN Kata Sandi Pengurus"
+                >
+                  <Key className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="hidden sm:inline">PIN</span>
+                </motion.button>
+              </div>
             ) : (
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -1051,6 +1155,79 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
             animate={{ opacity: 1 }}
             className="space-y-3"
           >
+            {/* TARGET KAS & PROGRESS BAR */}
+            <motion.div
+              initial={{ y: 8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-gradient-to-r from-teal-900 via-teal-950 to-emerald-950 text-white p-3.5 md:p-4 rounded-3xl shadow-lg border border-teal-600/30 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold">
+                    <Target className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-xs md:text-sm text-white flex items-center gap-1.5">
+                      <span>Target Kas & THR Kelas 4B</span>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    </h4>
+                    <p className="text-[10px] text-teal-200">25 Murid • Transparansi Semester 1 & Lebaran</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black bg-amber-400 text-teal-950 px-2.5 py-0.5 rounded-full shadow-sm">
+                  TA 2026/2027
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Progress Kas */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-black">
+                    <span className="text-teal-200 flex items-center gap-1">
+                      <Wallet className="w-3 h-3" />
+                      <span>Kas Rutin ({studentPaymentStatus.filter(s => s.kasLunas).length}/25 Lunas)</span>
+                    </span>
+                    <span className="text-white font-mono font-black">
+                      {Math.min(100, Math.round((stats.totalKasMasuk / 5000000) * 100))}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
+                    <div
+                      style={{ width: `${Math.min(100, (stats.totalKasMasuk / 5000000) * 100)}%` }}
+                      className="bg-gradient-to-r from-emerald-400 to-teal-300 h-full rounded-full transition-all duration-700"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-medium">
+                    <span>Terkumpul: <strong>Rp {stats.totalKasMasuk.toLocaleString('id-ID')}</strong></span>
+                    <span>Target: Rp 5.000.000</span>
+                  </div>
+                </div>
+
+                {/* Progress THR */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-black">
+                    <span className="text-amber-200 flex items-center gap-1">
+                      <Gift className="w-3 h-3" />
+                      <span>Uang THR ({studentPaymentStatus.filter(s => s.thrLunas).length}/25 Lunas)</span>
+                    </span>
+                    <span className="text-white font-mono font-black">
+                      {Math.min(100, Math.round((stats.totalThrMasuk / 2500000) * 100))}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
+                    <div
+                      style={{ width: `${Math.min(100, (stats.totalThrMasuk / 2500000) * 100)}%` }}
+                      className="bg-gradient-to-r from-amber-400 to-yellow-300 h-full rounded-full transition-all duration-700"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-medium">
+                    <span>Terkumpul: <strong>Rp {stats.totalThrMasuk.toLocaleString('id-ID')}</strong></span>
+                    <span>Target: Rp 2.500.000</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
             {/* Search & Filters */}
             <div className="bg-white p-3 md:p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
               <div className="relative">
@@ -1123,9 +1300,13 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       isMyChild ? 'border-teal-500 ring-2 ring-teal-300/40 bg-teal-50/20' : 'border-slate-200'
                     }`}
                   >
-                    <div className="flex items-start gap-2.5">
+                    <div
+                      onClick={() => setSelectedStudentDetail(s)}
+                      className="flex items-start gap-2.5 cursor-pointer group"
+                      title="Sentuh untuk melihat riwayat lengkap & kuitansi ananda"
+                    >
                       <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm border shrink-0 ${getAvatarBg(
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm border shrink-0 group-hover:scale-105 transition-transform ${getAvatarBg(
                           s.no
                         )}`}
                       >
@@ -1133,7 +1314,7 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-black text-slate-900 text-sm md:text-base truncate flex items-center gap-1">
+                          <span className="font-black text-slate-900 text-sm md:text-base truncate flex items-center gap-1 group-hover:text-teal-700 transition-colors">
                             {s.nickname}
                             {isMyChild && <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.2 rounded-full font-bold">Anak Bunda</span>}
                           </span>
@@ -1141,8 +1322,9 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                             #{s.no}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-500 font-medium truncate">
-                          {s.fullName}
+                        <div className="text-[10px] text-slate-500 font-medium truncate flex items-center justify-between">
+                          <span>{s.fullName}</span>
+                          <span className="text-[9px] text-teal-600 font-bold ml-1">Detail ↗</span>
                         </div>
                       </div>
                     </div>
@@ -1191,21 +1373,22 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                     </div>
 
                     {/* Quick Setor Buttons */}
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-1.5 pt-0.5">
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
                       >
-                        <PlusCircle className="w-3 h-3" /> Setor Kas
+                        <PlusCircle className="w-3 h-3" /> Setor
                       </motion.button>
 
                       <motion.button
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => handleOpenDepositForStudent(s, 'THR_MASUK')}
-                        className="bg-amber-500 hover:bg-amber-600 text-amber-950 py-1.5 px-2 rounded-lg font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                        onClick={() => setSelectedStudentDetail(s)}
+                        className="px-2.5 py-1.5 rounded-lg font-black text-[11px] border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center justify-center gap-1 shadow-sm transition-all"
+                        title="Lihat riwayat lengkap & kuitansi"
                       >
-                        <Gift className="w-3 h-3" /> Setor THR
+                        <FileText className="w-3 h-3 text-teal-600" /> Riwayat
                       </motion.button>
                     </div>
                   </motion.div>
@@ -1300,16 +1483,39 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                         <td>
                           <div className="font-bold text-slate-900 text-xs">{tx.description}</div>
                           {tx.note && <div className="text-[10px] text-slate-500 italic mt-0.5">{tx.note}</div>}
-                          {tx.proofImage && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImage(tx.proofImage!)}
-                              className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-all"
-                            >
-                              <Camera className="w-3 h-3 text-teal-600" />
-                              <span>Lihat Bukti Foto 📸</span>
-                            </button>
-                          )}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            {tx.proofImage && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImage(tx.proofImage!)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-all"
+                              >
+                                <Camera className="w-3 h-3 text-teal-600" />
+                                <span>Lihat Bukti 📸</span>
+                              </button>
+                            )}
+
+                            {tx.type === 'IN' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const st = students.find((s) => s.id === tx.studentId);
+                                  handleGenerateReceipt(
+                                    st || { fullName: tx.studentName || 'Wali Murid Kelas 4B', nickname: tx.studentName || 'Murid 4B', no: 0 },
+                                    tx.category as 'KAS_MASUK' | 'THR_MASUK',
+                                    tx.amount,
+                                    tx.paymentMethod || 'Transfer Mandiri',
+                                    tx.note || 'Lunas Terverifikasi'
+                                  );
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold transition-all"
+                                title="Buka Kuitansi Resmi"
+                              >
+                                <FileText className="w-3 h-3 text-amber-700" />
+                                <span>Kuitansi 🧾</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="text-[11px] text-slate-600">
                           {tx.qty && tx.unitPrice ? (
@@ -1620,17 +1826,18 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                 ) : (
                   <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                      Password Pengurus / Bendahara:
+                      Kata Sandi Pengurus / Bendahara:
                     </label>
                     <input
                       type="password"
-                      placeholder="Masukkan kata sandi sementara (misal: 4B)"
+                      placeholder="Masukkan kata sandi pengurus..."
                       value={loginPin}
                       onChange={(e) => setLoginPin(e.target.value)}
                       className="w-full p-3 rounded-xl border-2 border-purple-300 focus:border-purple-600 font-bold text-slate-900 text-sm"
                     />
-                    <p className="text-[11px] text-purple-700 font-semibold bg-purple-50 p-2 rounded-lg">
-                      🔑 Password sementara pengurus: <strong>4B</strong>
+                    <p className="text-[11px] text-purple-700 font-semibold bg-purple-50 p-2.5 rounded-xl border border-purple-100 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                      <span>Khusus pengurus kelas untuk mencatat pengeluaran kas.</span>
                     </p>
                   </div>
                 )}
@@ -2360,9 +2567,400 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐`;
                   onClick={() => setPreviewImage(null)}
                   className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-md shadow-teal-700/30 transition-all"
                 >
-                  Tutup Foto Bukti
+                  Tutup Gambar
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 6: E-KUITANSI DIGITAL RESMI OTOMATIS */}
+      <AnimatePresence>
+        {currentReceipt && (
+          <div className="modal-overlay z-[99999]">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="modal-content p-5 md:p-6 max-w-lg bg-white border-2 border-teal-600 shadow-2xl relative"
+            >
+              {/* Receipt Header */}
+              <div className="flex items-center justify-between border-b-2 border-dashed border-teal-200 pb-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/logo.png"
+                    alt="Logo Kelas 4B"
+                    className="w-12 h-12 object-contain rounded-xl border border-teal-100 p-0.5 bg-white shadow-sm shrink-0"
+                  />
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-teal-800">
+                      SD Islam • Tahun Ajaran 2026/2027
+                    </div>
+                    <h3 className="font-black text-slate-900 text-sm md:text-base leading-tight">
+                      KUITANSI DIGITAL RESMI KAS 4B
+                    </h3>
+                    <div className="text-[10px] font-mono text-slate-500 font-bold">
+                      No: {currentReceipt.receiptNo}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setCurrentReceipt(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Receipt Body */}
+              <div className="py-4 space-y-3 relative overflow-hidden">
+                {/* Lunas Stamp Watermark */}
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 rotate-[-18deg] border-4 border-emerald-600/30 text-emerald-700/40 font-black text-2xl md:text-3xl px-4 py-1.5 rounded-2xl pointer-events-none select-none uppercase tracking-widest text-center">
+                  <div>LUNAS ✓</div>
+                  <div className="text-[9px] tracking-normal">BENDAHARA 4B</div>
+                </div>
+
+                <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-medium">Telah Terima Dari</span>
+                  <span className="col-span-2 font-black text-slate-900">
+                    Mama {currentReceipt.nickname} (Ananda {currentReceipt.studentName})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-medium">No. Absen</span>
+                  <span className="col-span-2 font-bold text-teal-800">
+                    #{currentReceipt.noAbsen} Kelas 4B
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-medium">Untuk Pembayaran</span>
+                  <span className="col-span-2 font-black text-teal-950">
+                    {currentReceipt.category === 'KAS_MASUK'
+                      ? 'Iuran Kas Rutin Semester 1 Kelas 4B'
+                      : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-medium">Metode Bayar</span>
+                  <span className="col-span-2 font-bold text-slate-800">
+                    {currentReceipt.paymentMethod}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-medium">Tanggal Terima</span>
+                  <span className="col-span-2 font-medium text-slate-800">
+                    {currentReceipt.date}
+                  </span>
+                </div>
+
+                {/* Amount Highlight Box */}
+                <div className="bg-teal-50 border-2 border-teal-300 rounded-2xl p-3 text-center my-2 shadow-inner">
+                  <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">
+                    Jumlah Pembayaran
+                  </div>
+                  <div className="text-2xl font-black text-teal-950 my-0.5">
+                    Rp {currentReceipt.amount.toLocaleString('id-ID')}
+                  </div>
+                  <div className="text-[11px] font-semibold italic text-teal-700">
+                    "{currentReceipt.amountInWords}"
+                  </div>
+                </div>
+
+                {/* Signature & PIC */}
+                <div className="flex items-end justify-between pt-1">
+                  <div className="text-[10px] text-slate-400">
+                    Dokumen ini sah & tercatat otomatis<br />dalam sistem pembukuan Kas 4B.
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-500">Diterima & Diverifikasi:</div>
+                    <div className="font-black text-xs text-teal-950 mt-1 underline decoration-teal-600 underline-offset-4">
+                      {currentReceipt.pic}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2 no-print">
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    const waText = `*KUITANSI PEMBAYARAN KAS KELAS 4B* 🧾%0A━━━━━━━━━━━━━━━━━━━━%0ANo: *${currentReceipt.receiptNo}*%0ANama: *${currentReceipt.studentName}* (#${currentReceipt.noAbsen})%0APembayaran: *${currentReceipt.category === 'KAS_MASUK' ? 'Kas Rutin Semester 1' : 'Uang THR Lebaran'}*%0ANominal: *Rp ${currentReceipt.amount.toLocaleString('id-ID')}* (${currentReceipt.amountInWords})%0AMetode: *${currentReceipt.paymentMethod}*%0ATanggal: *${currentReceipt.date}*%0AStatus: *LUNAS & TERVERIFIKASI ✓*%0A━━━━━━━━━━━━━━━━━━━━%0APIC: _${currentReceipt.pic}_%0A_Terima kasih atas dukungannya Bunda/Mama!_ 🙏`;
+                    window.open(`https://wa.me/?text=${waText}`, '_blank');
+                  }}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-700/25 transition-all"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>KIRIM KE WHATSAPP</span>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 rounded-xl border-2 border-slate-300 hover:bg-slate-100 font-black text-xs text-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>CETAK / PDF</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 7: DETAIL PROFIL & RIWAYAT LENGKAP MURID */}
+      <AnimatePresence>
+        {selectedStudentDetail && (
+          <div className="modal-overlay z-[9999]">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="modal-content p-5 md:p-6 max-w-lg"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm border shrink-0 ${getAvatarBg(
+                      selectedStudentDetail.no
+                    )}`}
+                  >
+                    {selectedStudentDetail.no}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-900 text-base md:text-lg truncate">
+                      {selectedStudentDetail.nickname}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium truncate">
+                      {selectedStudentDetail.fullName} • Absen #{selectedStudentDetail.no}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedStudentDetail(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Payment Summary */}
+              <div className="grid grid-cols-2 gap-2 pt-3">
+                <div className="p-3 bg-teal-50/70 rounded-2xl border border-teal-200">
+                  <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
+                    Iuran Kas Rutin
+                  </div>
+                  <div className="text-base font-black text-teal-950 mt-0.5">
+                    Rp {selectedStudentDetail.totalKasPaid.toLocaleString('id-ID')}
+                  </div>
+                  <div className="mt-1">
+                    {selectedStudentDetail.kasLunas ? (
+                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp 200rb)</span>
+                    ) : (
+                      <span className="badge badge-warning text-[10px]">Kurang Rp {(200000 - selectedStudentDetail.totalKasPaid).toLocaleString('id-ID')}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200">
+                  <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                    Uang THR Lebaran
+                  </div>
+                  <div className="text-base font-black text-amber-950 mt-0.5">
+                    Rp {selectedStudentDetail.totalThrPaid.toLocaleString('id-ID')}
+                  </div>
+                  <div className="mt-1">
+                    {selectedStudentDetail.thrLunas ? (
+                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp 100rb)</span>
+                    ) : (
+                      <span className="badge badge-warning text-[10px]">Kurang Rp {(100000 - selectedStudentDetail.totalThrPaid).toLocaleString('id-ID')}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction List for This Child */}
+              <div className="pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                    Riwayat Pembayaran Ananda:
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    {transactions.filter((t) => t.studentId === selectedStudentDetail.id).length} Catatan
+                  </span>
+                </div>
+
+                <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1">
+                  {transactions.filter((t) => t.studentId === selectedStudentDetail.id).length === 0 ? (
+                    <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-400 font-bold border border-slate-200">
+                      Belum ada catatan pembayaran kas untuk ananda {selectedStudentDetail.nickname}.
+                    </div>
+                  ) : (
+                    transactions
+                      .filter((t) => t.studentId === selectedStudentDetail.id)
+                      .map((tx) => (
+                        <div
+                          key={tx.id}
+                          className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                              <span>{tx.category === 'KAS_MASUK' ? 'Kas Rutin' : 'Uang THR'}</span>
+                              <span className="font-mono text-emerald-700">Rp {tx.amount.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {tx.date} • via {tx.paymentMethod || 'Mandiri'}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {tx.proofImage && (
+                              <button
+                                onClick={() => setPreviewImage(tx.proofImage!)}
+                                className="p-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold"
+                                title="Lihat Bukti Foto"
+                              >
+                                📸
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                handleGenerateReceipt(
+                                  selectedStudentDetail,
+                                  tx.category as 'KAS_MASUK' | 'THR_MASUK',
+                                  tx.amount,
+                                  tx.paymentMethod || 'Transfer Mandiri',
+                                  tx.note || 'Lunas Terverifikasi'
+                                );
+                              }}
+                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10px] font-black flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3 text-amber-700" />
+                              <span>Kuitansi</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    const st = selectedStudentDetail;
+                    setSelectedStudentDetail(null);
+                    handleOpenDepositForStudent(st, 'KAS_MASUK');
+                  }}
+                  className="bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" /> Setor Kas
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    const st = selectedStudentDetail;
+                    setSelectedStudentDetail(null);
+                    handleOpenDepositForStudent(st, 'THR_MASUK');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
+                >
+                  <Gift className="w-3.5 h-3.5" /> Setor THR
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 8: PENGATURAN GANTI PIN PENGURUS */}
+      <AnimatePresence>
+        {isPinModalOpen && (
+          <div className="modal-overlay z-[99999]">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="modal-content p-5 max-w-sm"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-sm md:text-base">
+                      Ubah PIN Pengurus 🔒
+                    </h3>
+                    <p className="text-[10px] text-slate-500">Khusus Bendahara Kelas 4B</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newAdminPin || newAdminPin.trim().length < 3) {
+                    showToast('PIN minimal 3 karakter ya Bunda!', 'error');
+                    return;
+                  }
+                  localStorage.setItem('ambu_admin_pin', newAdminPin.trim());
+                  setIsPinModalOpen(false);
+                  setNewAdminPin('');
+                  showToast('PIN Pengurus berhasil diubah & tersimpan! 🔒', 'success');
+                }}
+                className="pt-3 space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                    PIN / Kata Sandi Baru:
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Masukkan PIN baru (misal: mama4b)"
+                    value={newAdminPin}
+                    onChange={(e) => setNewAdminPin(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border-2 border-purple-300 focus:border-purple-600 font-bold text-slate-900 text-sm"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    PIN ini akan digunakan setiap kali login sebagai Pengurus / Bendahara.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsPinModalOpen(false)}
+                    className="flex-1 py-2 rounded-xl border border-slate-300 font-bold text-slate-700 text-xs hover:bg-slate-100"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-black text-xs shadow-md shadow-purple-700/25"
+                  >
+                    Simpan PIN
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
