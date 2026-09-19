@@ -748,10 +748,15 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
       ? `${expenseForm.expenseCategory}: ${expenseForm.description}`
       : expenseForm.expenseCategory;
 
+    const adminPin = typeof window !== 'undefined' ? (localStorage.getItem('ambu_admin_pin') || 'Ambu132') : 'Ambu132';
+
     try {
       const res = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': adminPin,
+        },
         body: JSON.stringify({
           category: expenseForm.categoryType,
           amount: Number(totalAmount),
@@ -786,8 +791,14 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
   // Execute Confirmed Delete
   const handleConfirmDelete = async () => {
     if (!deleteConfirmItem) return;
+    const adminPin = typeof window !== 'undefined' ? (localStorage.getItem('ambu_admin_pin') || 'Ambu132') : 'Ambu132';
     try {
-      const res = await fetch(`/api/transactions?id=${deleteConfirmItem.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/transactions?id=${deleteConfirmItem.id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-admin-pin': adminPin,
+        },
+      });
       const data = await res.json();
       if (data.success) {
         showToast('Transaksi kas berhasil dihapus!', 'info');
