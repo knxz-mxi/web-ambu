@@ -1043,6 +1043,15 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <Key className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                   <span className="hidden md:inline">PIN</span>
                 </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleLogout}
+                  className="p-1.5 sm:px-2 sm:py-1.5 rounded-xl text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 flex items-center gap-1 transition-all"
+                  title="Keluar dari Akun Pengurus"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <span className="hidden md:inline">Keluar</span>
+                </motion.button>
               </div>
             ) : (
               <motion.button
@@ -1087,8 +1096,38 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
       {/* MAIN CONTAINER */}
       <main className="container-app py-3 md:py-4 space-y-3.5 max-w-full overflow-hidden">
 
-        {/* WELCOME BANNER KHUSUS MAMA */}
-        {userRole === 'MAMA' && currentMamaStudent && myChildStatus ? (
+        {/* BANNER STATUS SESI PENGURUS / MAMA / GUEST */}
+        {userRole === 'BENDAHARA' ? (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-3 md:p-3.5 shadow-md border border-purple-500/40 flex items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/30 text-purple-200 flex items-center justify-center font-black text-base shrink-0 border border-purple-400/30 shadow-inner">
+                🛡️
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-black text-purple-200 flex items-center gap-1.5 flex-wrap">
+                  <span>Anda Masuk sebagai Pengurus / Bendahara</span>
+                  <span className="bg-purple-500/40 text-[10px] px-2 py-0.5 rounded-full border border-purple-400/40 font-bold">Mode Admin</span>
+                </div>
+                <p className="text-[11px] text-purple-100/70 truncate">
+                  Memiliki akses catat pengeluaran & hapus transaksi kas.
+                </p>
+              </div>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleLogout}
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs font-black px-3 py-1.5 rounded-xl shrink-0 transition-all flex items-center gap-1 shadow-sm"
+              title="Keluar dari akun pengurus"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-300" />
+              <span>Keluar</span>
+            </motion.button>
+          </motion.div>
+        ) : userRole === 'MAMA' && currentMamaStudent && myChildStatus ? (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -2300,6 +2339,19 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     <Check className="w-4 h-4 stroke-[3]" />
                     <span>MASUK SEKARANG</span>
                   </motion.button>
+                  {userRole !== 'GUEST' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleLogout();
+                        setIsLoginModalOpen(false);
+                      }}
+                      className="px-3 py-3 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-all"
+                      title="Keluar dari sesi saat ini"
+                    >
+                      Keluar
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsLoginModalOpen(false)}
