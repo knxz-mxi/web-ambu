@@ -846,38 +846,33 @@ Powered by code by MXI CODES`;
 
   // Generate WhatsApp Contreng Message (Format Khusus Permintaan Emak-emak Grup WA)
   const waContrengText = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'numeric',
-      year: 'numeric',
-    });
-
     const lines = studentPaymentStatus.map((s) => {
       let mark = '';
       if (s.kasLunas) {
-        mark = s.lastKasDateFormatted ? ` ✅ ${s.lastKasDateFormatted}` : ' ✅';
+        mark = s.lastKasDateFormatted ? `✅${s.lastKasDateFormatted}` : '✅';
       } else if (s.kasBertahap) {
         const nominalK = s.totalKasPaid >= 1000 ? (s.totalKasPaid / 1000).toFixed(0) : String(s.totalKasPaid);
-        mark = s.lastKasDateFormatted ? ` 👍🏻 ${s.lastKasDateFormatted}. Rp.${nominalK}` : ` 👍🏻 Rp.${nominalK}`;
+        mark = s.lastKasDateFormatted ? `👍🏻${s.lastKasDateFormatted}. Rp.${nominalK}` : `👍🏻 Rp.${nominalK}`;
       }
-      return `${s.no}. ${s.fullName} (Mama ${s.nickname})${mark}`;
+      return `${s.no}. Mama ${s.nickname}${mark}`;
     });
 
     const lunasCount = studentPaymentStatus.filter((s) => s.kasLunas).length;
     const bertahapCount = studentPaymentStatus.filter((s) => s.kasBertahap).length;
 
-    return `*DAFTAR IURAN KAS KELAS 4B* 🌸
-*SD ISLAM TAHUN AJARAN 2026/2027*
-📅 Update per: ${todayStr}
+    return `*LAPORAN UANG KAS. KELAS 4B.BILAL BIN RABAH*
+*PERIODE MEI 2026 S/D MEI 2027*
+
+*BNI. NO.REKENING. 2102403976. a/n Nia Mulyawati*
 
 ${lines.join('\n')}
 
-✅ : Lunas (${lunasCount} Anak)
-👍🏻 : Bertahap (${bertahapCount} Anak)
+✅: *Lunas* (${lunasCount} Anak)
+👍🏻: *Bertahap* (${bertahapCount} Anak)
 
 ━━━━━━━━━━━━━━━━━━━━
 💰 *Total Kas Terkumpul:* Rp ${stats.totalKasMasuk.toLocaleString('id-ID')}
-💳 *Bank Mandiri:* 1270004638738 (Mama Bia)
+💳 *BNI:* 2102403976 (Nia Mulyawati)
 Konfirmasi setor: Silakan submit di web / kirim bukti ya Bunda 🙏
 
 Powered by code by MXI CODES`;
@@ -942,10 +937,10 @@ Powered by code by MXI CODES`;
     setTimeout(() => setCopiedWa(false), 2500);
   };
 
-  const copyRekening = () => {
-    navigator.clipboard.writeText('1270004638738');
+  const copyRekening = (noRek: string = '2102403976') => {
+    navigator.clipboard.writeText(noRek);
     setCopiedRek(true);
-    showToast('Nomor Rekening Mandiri 1270004638738 disalin! 💳', 'success');
+    showToast(`Nomor Rekening ${noRek} berhasil disalin! 💳`, 'success');
     setTimeout(() => setCopiedRek(false), 2500);
   };
 
@@ -992,10 +987,10 @@ Powered by code by MXI CODES`;
             </motion.div>
             <div className="min-w-0">
               <h1 className="text-xs sm:text-sm md:text-base font-black text-slate-900 leading-tight flex items-center gap-1 truncate">
-                Kas & THR 4B <span className="inline-block animate-bounce">🌸</span>
+                Kas & THR 4B Bilal Bin Rabah <span className="inline-block animate-bounce">🌸</span>
               </h1>
               <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">
-                SD Islam 2026–2027
+                Periode Mei 2026 s/d Mei 2027 • SD Islam
               </p>
             </div>
           </div>
@@ -1344,17 +1339,17 @@ Powered by code by MXI CODES`;
             </div>
             <div className="min-w-0">
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Rekening Kas & THR (Bank Mandiri)
+                Rekening Resmi Kas (Bank BNI)
               </div>
               <div className="text-sm md:text-base font-black text-slate-900 font-mono tracking-wider truncate">
-                1270004638738 <span className="text-xs font-sans font-semibold text-teal-800">a/n Naraya (Mama Bia)</span>
+                2102403976 <span className="text-xs font-sans font-semibold text-teal-800">a/n Nia Mulyawati</span>
               </div>
             </div>
           </div>
 
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={copyRekening}
+            onClick={() => copyRekening('2102403976')}
             className={`w-full sm:w-auto px-3.5 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm ${
               copiedRek
                 ? 'bg-emerald-600 text-white'
@@ -2011,22 +2006,37 @@ Powered by code by MXI CODES`;
 
               <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white p-3.5 rounded-2xl space-y-2 shadow-md">
                 <div className="flex items-center justify-between text-xs text-teal-200 font-bold">
-                  <span>BANK MANDIRI</span>
-                  <span className="badge badge-success text-[10px]">Aktif</span>
+                  <span>BANK BNI (REKENING RESMI)</span>
+                  <span className="badge badge-success text-[10px]">Aktif 2026/2027</span>
                 </div>
-                <div className="text-lg md:text-xl font-mono font-black tracking-wider text-white">
-                  1270004638738
+                <div className="text-lg md:text-xl font-mono font-black tracking-wider text-amber-300">
+                  2102403976
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1.5 border-t border-white/10">
-                  <div className="font-bold text-teal-100 text-[11px]">a/n Naraya XX (Mama Bia)</div>
+                  <div className="font-bold text-teal-100 text-[11px]">a/n Nia Mulyawati</div>
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={copyRekening}
+                    onClick={() => copyRekening('2102403976')}
                     className="bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
                   >
-                    <Copy className="w-3 h-3" /> Salin
+                    <Copy className="w-3 h-3" /> Salin BNI
                   </motion.button>
                 </div>
+              </div>
+
+              {/* Rekening Alternatif Mandiri */}
+              <div className="bg-slate-50 text-slate-800 p-2.5 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                <div>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase">Rekening Alternatif: Bank Mandiri</div>
+                  <div className="font-mono font-bold text-[11px] text-slate-900">1270004638738 (Mama Bia)</div>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => copyRekening('1270004638738')}
+                  className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold"
+                >
+                  Salin Mandiri
+                </motion.button>
               </div>
 
               <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
