@@ -217,7 +217,7 @@ export default function HomePage() {
     unitPrice: 150000,
     amount: 150000,
     date: new Date().toISOString().split('T')[0],
-    pic: 'Mama Bia (Bendahara)',
+    pic: 'Mama Athalla (Bendahara)',
     note: 'Struk / Bukti Terlampir',
   });
 
@@ -373,7 +373,7 @@ export default function HomePage() {
       amountInWords: words,
       date: today,
       paymentMethod,
-      pic: 'Mama Bia (Bendahara Kelas 4B)',
+      pic: 'Mama Athalla (Bendahara 4 B Bilal Bin Rabah)',
       note,
     });
   };
@@ -704,8 +704,8 @@ Powered by code by MXI CODES`;
           studentName,
           description: desc,
           paymentMethod: depositForm.paymentMethod,
-          pic: 'Mama Bia (Bendahara)',
-          note: depositForm.note || 'Trf Bank Mandiri',
+          pic: 'Mama Athalla (Bendahara)',
+          note: depositForm.note || 'Trf BNI Nia Mulyawati',
           proofImage: depositForm.proofImage || null,
         }),
       });
@@ -814,7 +814,7 @@ Powered by code by MXI CODES`;
         'Uang Masuk (Rp)': tx.type === 'IN' ? tx.amount : 0,
         'Uang Keluar (Rp)': tx.type === 'OUT' ? tx.amount : 0,
         'Saldo Berjalan (Rp)': tx.runningBalance,
-        'PIC / Pengurus': tx.pic || 'Mama Bia',
+        'PIC / Pengurus': tx.pic || 'Mama Athalla',
         'Metode Bayar': tx.paymentMethod || '',
         'Catatan / Rekening': tx.note || '',
       }));
@@ -920,8 +920,8 @@ ${
 
 ━━━━━━━━━━━━━━━━━━━━
 📌 *Rekening Kas Kelas:*
-💳 Bank Mandiri: *1270004638738*
-a/n Naraya XX (Mama Bia - Bendahara)
+💳 BNI: *2102403976*
+a/n Nia Mulyawati (Mama Athalla - Bendahara)
 Konfirmasi setor: Japri bukti transfer ya Bunda/Mama 🙏
 
 _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐
@@ -1313,7 +1313,7 @@ Powered by code by MXI CODES`;
                       unitPrice: 150000,
                       amount: 150000,
                       date: new Date().toISOString().split('T')[0],
-                      pic: 'Mama Bia (Bendahara)',
+                      pic: 'Mama Athalla (Bendahara)',
                       note: 'Struk / Bukti Terlampir',
                     });
                     setIsExpenseModalOpen(true);
@@ -1914,7 +1914,7 @@ Powered by code by MXI CODES`;
                           Rp {tx.runningBalance.toLocaleString('id-ID')}
                         </td>
                         <td className="text-xs text-slate-700">
-                          <span className="font-bold text-teal-800">{tx.pic || 'Mama Bia'}</span>
+                          <span className="font-bold text-teal-800">{tx.pic || 'Mama Athalla'}</span>
                           {tx.paymentMethod && (
                             <span className="block text-[10px] text-slate-500">
                               via {tx.paymentMethod}
@@ -2013,7 +2013,7 @@ Powered by code by MXI CODES`;
                   2102403976
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1.5 border-t border-white/10">
-                  <div className="font-bold text-teal-100 text-[11px]">a/n Nia Mulyawati</div>
+                  <div className="font-bold text-teal-100 text-[11px]">a/n Nia Mulyawati (Mama Athalla)</div>
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     onClick={() => copyRekening('2102403976')}
@@ -2022,21 +2022,6 @@ Powered by code by MXI CODES`;
                     <Copy className="w-3 h-3" /> Salin BNI
                   </motion.button>
                 </div>
-              </div>
-
-              {/* Rekening Alternatif Mandiri */}
-              <div className="bg-slate-50 text-slate-800 p-2.5 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                <div>
-                  <div className="text-[9px] font-bold text-slate-500 uppercase">Rekening Alternatif: Bank Mandiri</div>
-                  <div className="font-mono font-bold text-[11px] text-slate-900">1270004638738 (Mama Bia)</div>
-                </div>
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => copyRekening('1270004638738')}
-                  className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold"
-                >
-                  Salin Mandiri
-                </motion.button>
               </div>
 
               <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
@@ -2868,7 +2853,7 @@ Powered by code by MXI CODES`;
                     <input
                       type="text"
                       required
-                      placeholder="Mama Bia / Ibun Cheryl"
+                      placeholder="Mama Athalla (Bendahara)"
                       value={expenseForm.pic}
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, pic: e.target.value })
