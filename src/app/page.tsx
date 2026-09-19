@@ -380,8 +380,8 @@ export default function HomePage() {
 
   // Helper: Format Teks Kuitansi Resmi
   const getReceiptFormattedText = (receipt: ReceiptItem) => {
-    return `*KUITANSI DIGITAL RESMI KAS 4B* 🧾
-*SD ISLAM • TAHUN AJARAN 2026/2027*
+    return `*KUITANSI DIGITAL RESMI KAS 4B BILAL BIN RABAH* 🧾
+*PERIODE MEI 2026 S/D MEI 2027*
 ━━━━━━━━━━━━━━━━━━━━
 No. Kuitansi: *${receipt.receiptNo}*
 Tanggal: *${receipt.date}*
@@ -391,7 +391,7 @@ Telah Terima Dari:
 (Ananda *${receipt.studentName}* - Absen #${receipt.noAbsen})
 
 Untuk Pembayaran:
-*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin Semester 1 Kelas 4B' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
+*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin 4B Bilal Bin Rabah' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
 
 Metode Bayar: *${receipt.paymentMethod}*
 
@@ -402,7 +402,7 @@ Status: *LUNAS & TERVERIFIKASI ✓*
 ━━━━━━━━━━━━━━━━━━━━
 Diterima & Diverifikasi oleh:
 *${receipt.pic}*
-_Dokumen sah & tercatat otomatis dalam sistem pembukuan Kas 4B._
+_Dokumen sah & tercatat otomatis dalam sistem pembukuan 4B Bilal Bin Rabah._
 
 Powered by code by MXI CODES`;
   };
@@ -1726,10 +1726,10 @@ Powered by code by MXI CODES`;
             <div className="bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="font-black text-slate-900 text-sm md:text-base">
-                  Buku Kas & Pengeluaran Kelas 4B 📖
+                  Buku Kas & Pengeluaran 4B Bilal Bin Rabah 📖
                 </h3>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  Format pembukuan resmi dengan saldo berjalan otomatis.
+                  Format pembukuan resmi Periode Mei 2026 s/d Mei 2027.
                 </p>
               </div>
 
@@ -1775,7 +1775,7 @@ Powered by code by MXI CODES`;
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span className="text-xs font-black uppercase tracking-wider text-teal-200">
-                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo Kas Kelas 4B'}
+                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo 4B Bilal Bin Rabah'}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-teal-100">
@@ -1940,7 +1940,7 @@ Powered by code by MXI CODES`;
                   <tr className="bg-slate-50">
                     <td colSpan={4} className="font-black text-slate-900 text-xs">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span>TOTAL SALDO KAS KELAS 4B:</span>
+                        <span>TOTAL SALDO 4B BILAL BIN RABAH:</span>
                         {/* Nominal langsung tampil di layar mobile tanpa perlu geser/scroll kanan */}
                         <span className="sm:hidden font-black text-teal-950 bg-amber-300 border border-amber-400 px-2.5 py-1 rounded-xl text-xs shadow-xs">
                           Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
@@ -1966,7 +1966,7 @@ Powered by code by MXI CODES`;
             <div className="sm:hidden bg-gradient-to-r from-teal-900 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-lg border border-teal-700/50">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300">
-                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo Kas 4B'}
+                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo 4B Bilal Bin Rabah'}
                 </div>
                 <div className="text-lg font-black text-amber-300 mt-0.5">
                   Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
@@ -3105,10 +3105,10 @@ Powered by code by MXI CODES`;
                   />
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-wider text-teal-800">
-                      SD Islam • Tahun Ajaran 2026/2027
+                      4B BILAL BIN RABAH • PERIODE MEI 2026–2027
                     </div>
                     <h3 className="font-black text-slate-900 text-sm md:text-base leading-tight">
-                      KUITANSI DIGITAL RESMI KAS 4B
+                      KUITANSI RESMI KAS 4B BILAL BIN RABAH
                     </h3>
                     <div className="text-[10px] font-mono text-slate-500 font-bold">
                       No: {currentReceipt.receiptNo}
@@ -3129,7 +3129,7 @@ Powered by code by MXI CODES`;
                 {/* Lunas Stamp Watermark */}
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 rotate-[-18deg] border-4 border-emerald-600/30 text-emerald-700/40 font-black text-2xl md:text-3xl px-4 py-1.5 rounded-2xl pointer-events-none select-none uppercase tracking-widest text-center">
                   <div>LUNAS ✓</div>
-                  <div className="text-[9px] tracking-normal">BENDAHARA 4B</div>
+                  <div className="text-[9px] tracking-normal">4B BILAL BIN RABAH</div>
                 </div>
 
                 <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
@@ -3142,7 +3142,7 @@ Powered by code by MXI CODES`;
                 <div className="grid grid-cols-3 text-xs gap-1 border-b border-slate-100 pb-2">
                   <span className="text-slate-500 font-medium">No. Absen</span>
                   <span className="col-span-2 font-bold text-teal-800">
-                    #{currentReceipt.noAbsen} Kelas 4B
+                    #{currentReceipt.noAbsen} • 4B Bilal Bin Rabah
                   </span>
                 </div>
 
@@ -3150,7 +3150,7 @@ Powered by code by MXI CODES`;
                   <span className="text-slate-500 font-medium">Untuk Pembayaran</span>
                   <span className="col-span-2 font-black text-teal-950">
                     {currentReceipt.category === 'KAS_MASUK'
-                      ? 'Iuran Kas Rutin Semester 1 Kelas 4B'
+                      ? 'Iuran Kas Rutin 4B Bilal Bin Rabah'
                       : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}
                   </span>
                 </div>

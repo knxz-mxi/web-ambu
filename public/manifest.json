@@ -1,7 +1,7 @@
 {
-  "name": "Buku Kas 4B - SD Islam",
-  "short_name": "Kas Kelas 4B",
-  "description": "Aplikasi Buku Kas & Uang THR Kelas 4B SD Islam 2026-2027",
+  "name": "Buku Kas 4B Bilal Bin Rabah",
+  "short_name": "Kas 4B Bilal",
+  "description": "Aplikasi Buku Kas & Uang THR 4B Bilal Bin Rabah Periode Mei 2026 s/d Mei 2027",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d9488",
