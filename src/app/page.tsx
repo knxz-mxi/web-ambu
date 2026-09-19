@@ -1754,6 +1754,66 @@ Powered by code by MXI CODES`;
               </div>
             </div>
 
+            {/* RINGKASAN SALDO INSTAN (RAMAH MAK-MAK MILENIAL & BOOMER - LANGSUNG KELIHATAN TANPA GESER/SCROLL!) */}
+            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-lg border border-teal-700/50">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-xs font-black uppercase tracking-wider text-teal-200">
+                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo Kas Kelas 4B'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-teal-100">
+                  Real-Time Otomatis
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-3">
+                {/* Total Pemasukan */}
+                <div className="bg-white/10 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 flex sm:flex-col items-center sm:items-start justify-between">
+                  <div className="text-[10px] font-bold text-teal-200 uppercase tracking-wider">
+                    Total Masuk
+                  </div>
+                  <div className="text-sm sm:text-base md:text-lg font-black text-emerald-300 mt-0.5">
+                    Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrMasuk : stats.totalKasMasuk).toLocaleString('id-ID')}
+                  </div>
+                </div>
+
+                {/* Total Pengeluaran */}
+                <div className="bg-white/10 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 flex sm:flex-col items-center sm:items-start justify-between">
+                  <div className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">
+                    Total Keluar
+                  </div>
+                  <div className="text-sm sm:text-base md:text-lg font-black text-rose-300 mt-0.5">
+                    Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrKeluar : stats.totalKasKeluar).toLocaleString('id-ID')}
+                  </div>
+                </div>
+
+                {/* Sisa Saldo Utama (Paling Besar & Menonjol) */}
+                <div className="bg-gradient-to-br from-amber-400 via-amber-300 to-yellow-400 text-teal-950 p-2.5 sm:p-3 rounded-xl border-2 border-white/40 shadow-md flex sm:flex-col items-center sm:items-start justify-between">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-teal-950/80 flex items-center gap-1">
+                      <span>✨ SISA SALDO SAAT INI</span>
+                    </div>
+                    <div className="text-base sm:text-xl md:text-2xl font-black text-teal-950 mt-0.5 tracking-tight">
+                      Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                  <span className="sm:hidden text-[10px] font-black bg-teal-950 text-amber-300 px-2 py-0.5 rounded-lg shrink-0">
+                    Aktif
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Hint geser khusus mobile */}
+            <div className="sm:hidden flex items-center justify-between px-3 py-1.5 bg-teal-50 border border-teal-200 text-[11px] text-teal-900 rounded-xl font-bold">
+              <span>📋 Geser tabel untuk lihat rincian</span>
+              <span className="text-teal-700 font-extrabold flex items-center gap-0.5">
+                Kanan 👉
+              </span>
+            </div>
+
             <div className="table-responsive">
               <table className="ods-table">
                 <thead>
@@ -1862,23 +1922,49 @@ Powered by code by MXI CODES`;
                   )}
                 </tbody>
                 <tfoot>
-                  <tr>
+                  <tr className="bg-slate-50">
                     <td colSpan={4} className="font-black text-slate-900 text-xs">
-                      TOTAL SALDO KAS KELAS 4B:
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span>TOTAL SALDO KAS KELAS 4B:</span>
+                        {/* Nominal langsung tampil di layar mobile tanpa perlu geser/scroll kanan */}
+                        <span className="sm:hidden font-black text-teal-950 bg-amber-300 border border-amber-400 px-2.5 py-1 rounded-xl text-xs shadow-xs">
+                          Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
+                        </span>
+                      </div>
                     </td>
                     <td className="text-right font-black text-emerald-800 text-xs">
-                      Rp {stats.totalKasMasuk.toLocaleString('id-ID')}
+                      Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrMasuk : stats.totalKasMasuk).toLocaleString('id-ID')}
                     </td>
                     <td className="text-right font-black text-rose-800 text-xs">
-                      Rp {stats.totalKasKeluar.toLocaleString('id-ID')}
+                      Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrKeluar : stats.totalKasKeluar).toLocaleString('id-ID')}
                     </td>
                     <td className="text-right font-black text-teal-900 text-xs md:text-sm">
-                      Rp {stats.saldoKas.toLocaleString('id-ID')}
+                      Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
                     </td>
                     <td colSpan={userRole === 'BENDAHARA' ? 2 : 1}></td>
                   </tr>
                 </tfoot>
               </table>
+            </div>
+
+            {/* RINGKASAN SALDO BAWAH KHUSUS MOBILE (TANPA SCROLL HORIZONTAL) */}
+            <div className="sm:hidden bg-gradient-to-r from-teal-900 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-lg border border-teal-700/50">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300">
+                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo Kas 4B'}
+                </div>
+                <div className="text-lg font-black text-amber-300 mt-0.5">
+                  Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
+                </div>
+              </div>
+              <div className="text-right space-y-0.5">
+                <div className="text-[11px] font-bold text-emerald-300">
+                  + Masuk: Rp {((ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrMasuk : stats.totalKasMasuk) / 1000).toFixed(0)}k
+                </div>
+                <div className="text-[11px] font-bold text-rose-300">
+                  - Keluar: Rp {((ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrKeluar : stats.totalKasKeluar) / 1000).toFixed(0)}k
+                </div>
+              </div>
             </div>
           </motion.section>
         )}
