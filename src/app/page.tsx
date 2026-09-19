@@ -458,14 +458,15 @@ Powered by code by MXI CODES`;
 
   // Cetak Kuitansi / Download PDF
   const handlePrintReceipt = () => {
+    // Bersihkan toast agar kuitansi bersih tanpa banner notifikasi
+    setToasts([]);
     document.body.classList.add('printing-receipt');
-    showToast('Membuka jendela cetak / simpan PDF... 🖨️📄', 'info');
     setTimeout(() => {
       window.print();
       setTimeout(() => {
         document.body.classList.remove('printing-receipt');
       }, 1000);
-    }, 200);
+    }, 150);
   };
 
   // Handle Login
@@ -3442,7 +3443,7 @@ Powered by code by MXI CODES`;
       </AnimatePresence>
 
       {/* FLOATING MODERN TOAST NOTIFICATIONS (NO MORE PURBA BROWSER ALERTS!) */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md">
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md no-print toasts-container">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
