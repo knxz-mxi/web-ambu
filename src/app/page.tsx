@@ -135,6 +135,7 @@ export default function HomePage() {
     note?: string | null;
   }
   const [currentReceipt, setCurrentReceipt] = useState<ReceiptItem | null>(null);
+  const [copiedReceipt, setCopiedReceipt] = useState(false);
 
   // Student Detail Drawer State
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<any | null>(null);
@@ -255,7 +256,16 @@ export default function HomePage() {
       setIsInstallNoticeVisible(true);
     };
     window.addEventListener('beforeinstallprompt', pwaHandler);
-    return () => window.removeEventListener('beforeinstallprompt', pwaHandler);
+
+    const handleAfterPrint = () => {
+      document.body.classList.remove('printing-receipt');
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', pwaHandler);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
   }, []);
 
   // PWA Install Handlers
@@ -366,6 +376,96 @@ export default function HomePage() {
       pic: 'Mama Bia (Bendahara Kelas 4B)',
       note,
     });
+  };
+
+  // Helper: Format Teks Kuitansi Resmi
+  const getReceiptFormattedText = (receipt: ReceiptItem) => {
+    return `*KUITANSI DIGITAL RESMI KAS 4B* 🧾
+*SD ISLAM • TAHUN AJARAN 2026/2027*
+━━━━━━━━━━━━━━━━━━━━
+No. Kuitansi: *${receipt.receiptNo}*
+Tanggal: *${receipt.date}*
+
+Telah Terima Dari:
+*Mama ${receipt.nickname}*
+(Ananda *${receipt.studentName}* - Absen #${receipt.noAbsen})
+
+Untuk Pembayaran:
+*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin Semester 1 Kelas 4B' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
+
+Metode Bayar: *${receipt.paymentMethod}*
+
+💰 *JUMLAH DITERIMA: Rp ${receipt.amount.toLocaleString('id-ID')}*
+Terbilang: _"${receipt.amountInWords}"_
+
+Status: *LUNAS & TERVERIFIKASI ✓*
+━━━━━━━━━━━━━━━━━━━━
+Diterima & Diverifikasi oleh:
+*${receipt.pic}*
+_Dokumen sah & tercatat otomatis dalam sistem pembukuan Kas 4B._
+
+Powered by code by MXI CODES`;
+  };
+
+  // Salin Teks Kuitansi ke Clipboard
+  const handleCopyReceiptText = (receipt: ReceiptItem) => {
+    const text = getReceiptFormattedText(receipt);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setCopiedReceipt(true);
+          showToast('Teks kuitansi resmi tersalin ke clipboard! 📋✨', 'success');
+          setTimeout(() => setCopiedReceipt(false), 2500);
+        })
+        .catch(() => {
+          showToast('Gagal menyalin teks kuitansi.', 'error');
+        });
+    } else {
+      showToast('Clipboard tidak didukung di browser ini.', 'error');
+    }
+  };
+
+  // Kirim Kuitansi ke WhatsApp (Aman popup blocker & URL hash encoding)
+  const handleSendReceiptWa = (receipt: ReceiptItem) => {
+    const receiptText = getReceiptFormattedText(receipt);
+
+    // Auto-copy text as instant safety fallback
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(receiptText).catch(() => {});
+    }
+
+    const encoded = encodeURIComponent(receiptText);
+    const waUrl = `https://api.whatsapp.com/send?text=${encoded}`;
+
+    try {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const link = document.createElement('a');
+      link.href = waUrl;
+      link.target = isMobile ? '_self' : '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 200);
+      showToast('Membuka WhatsApp & Kuitansi tersalin otomatis! 📲📋', 'success');
+    } catch {
+      window.location.href = waUrl;
+    }
+  };
+
+  // Cetak Kuitansi / Download PDF
+  const handlePrintReceipt = () => {
+    document.body.classList.add('printing-receipt');
+    showToast('Membuka jendela cetak / simpan PDF... 🖨️📄', 'info');
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-receipt');
+      }, 1000);
+    }, 200);
   };
 
   // Handle Login
@@ -2864,8 +2964,9 @@ Powered by code by MXI CODES`;
       {/* MODAL 6: E-KUITANSI DIGITAL RESMI OTOMATIS */}
       <AnimatePresence>
         {currentReceipt && (
-          <div className="modal-overlay z-[99999]">
+          <div className="modal-overlay receipt-modal-overlay z-[99999]">
             <motion.div
+              id="receipt-print-area"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -2894,7 +2995,7 @@ Powered by code by MXI CODES`;
 
                 <button
                   onClick={() => setCurrentReceipt(null)}
-                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black"
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-black no-print"
                 >
                   ✕
                 </button>
@@ -2980,11 +3081,8 @@ Powered by code by MXI CODES`;
               <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2 no-print">
                 <motion.button
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    const waText = `*KUITANSI PEMBAYARAN KAS KELAS 4B* 🧾%0A━━━━━━━━━━━━━━━━━━━━%0ANo: *${currentReceipt.receiptNo}*%0ANama: *${currentReceipt.studentName}* (#${currentReceipt.noAbsen})%0APembayaran: *${currentReceipt.category === 'KAS_MASUK' ? 'Kas Rutin Semester 1' : 'Uang THR Lebaran'}*%0ANominal: *Rp ${currentReceipt.amount.toLocaleString('id-ID')}* (${currentReceipt.amountInWords})%0AMetode: *${currentReceipt.paymentMethod}*%0ATanggal: *${currentReceipt.date}*%0AStatus: *LUNAS & TERVERIFIKASI ✓*%0A━━━━━━━━━━━━━━━━━━━━%0APIC: _${currentReceipt.pic}_%0A_Terima kasih atas dukungannya Bunda/Mama!_ 🙏`;
-                    window.open(`https://wa.me/?text=${waText}`, '_blank');
-                  }}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-700/25 transition-all"
+                  onClick={() => handleSendReceiptWa(currentReceipt)}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-700/25 transition-all"
                 >
                   <Send className="w-4 h-4" />
                   <span>KIRIM KE WHATSAPP</span>
@@ -2992,11 +3090,25 @@ Powered by code by MXI CODES`;
 
                 <motion.button
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => window.print()}
-                  className="px-4 py-2.5 rounded-xl border-2 border-slate-300 hover:bg-slate-100 font-black text-xs text-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                  onClick={handlePrintReceipt}
+                  className="px-3.5 py-2.5 rounded-xl border-2 border-teal-600 hover:bg-teal-50 font-black text-xs text-teal-800 flex items-center justify-center gap-1.5 transition-all shadow-xs"
                 >
                   <Printer className="w-4 h-4" />
                   <span>CETAK / PDF</span>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => handleCopyReceiptText(currentReceipt)}
+                  className={`px-3 py-2.5 rounded-xl border font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    copiedReceipt
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                  }`}
+                  title="Salin format teks kuitansi ke clipboard"
+                >
+                  {copiedReceipt ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+                  <span>{copiedReceipt ? 'TERSALIN' : 'SALIN TEKS'}</span>
                 </motion.button>
               </div>
             </motion.div>
