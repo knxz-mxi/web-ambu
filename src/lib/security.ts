@@ -120,7 +120,7 @@ export function validateAmount(val: any): { valid: boolean; amount: number; erro
  * Validate category
  */
 export function validateCategory(cat: string): boolean {
-  return ['KAS_MASUK', 'THR_MASUK', 'PENGELUARAN', 'THR_KELUAR'].includes(cat);
+  return ['KAS_MASUK', 'THR_MASUK', 'PENGELUARAN', 'THR_KELUAR', 'KADEUDEUH_MASUK', 'KADEUDEUH_KELUAR'].includes(cat);
 }
 
 /**

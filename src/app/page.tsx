@@ -46,11 +46,31 @@ import {
   Target,
   TrendingUp,
   Smartphone,
+  Database,
+  Shirt,
+  Sliders,
+  Banknote,
+  Layers,
+  Settings,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { STUDENTS_KELAS_4B, StudentItem } from '@/lib/students';
+
+export interface NominalSettings {
+  kasMonthlyFee: number; // e.g. 30000 (kelipatan 30 rb)
+  kasMonthsTarget: number; // e.g. 10 bulan
+  targetKasPerStudent: number; // e.g. 300000 (30.000 x 10)
+  targetKadeudeuhPerStudent: number; // e.g. 100000
+}
+
+export const DEFAULT_NOMINAL_SETTINGS: NominalSettings = {
+  kasMonthlyFee: 30000,
+  kasMonthsTarget: 10,
+  targetKasPerStudent: 300000,
+  targetKadeudeuhPerStudent: 100000,
+};
 
 interface TransactionItem {
   id: string;
@@ -85,8 +105,16 @@ export default function HomePage() {
   const [loginError, setLoginError] = useState('');
   const [loginStudentSearch, setLoginStudentSearch] = useState('');
 
-  // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'info'>('dashboard');
+  // Active navigation tab (Dashboard, Buku Kas, Data Center, Panduan)
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'datacenter' | 'info'>('dashboard');
+
+  // Nominal Settings (Multiples of 30.000, Synced across web & Editable by Admin)
+  const [nominalSettings, setNominalSettings] = useState<NominalSettings>(DEFAULT_NOMINAL_SETTINGS);
+  const [adminNominalEdit, setAdminNominalEdit] = useState<NominalSettings>(DEFAULT_NOMINAL_SETTINGS);
+
+  // Selamat Datang Feature: Paid Nominals per Child breakdown
+  const [isWelcomeNominalOpen, setIsWelcomeNominalOpen] = useState(true);
+  const [welcomeStudentSearch, setWelcomeStudentSearch] = useState('');
 
   // Search & Filters
   const [studentSearch, setStudentSearch] = useState('');
@@ -152,11 +180,23 @@ export default function HomePage() {
   // Boomer font mode
   const [isBoomerMode, setIsBoomerMode] = useState(false);
 
-  // Form State: Setor (Deposit)
+  // Expense Categories (Includes Kostum Angkatan)
+  const [expenseCategories, setExpenseCategories] = useState([
+    { id: 'Kostum Angkatan', label: 'Kostum Angkatan', icon: '👕', price: 150000 },
+    { id: 'Tanda Kasih Sakit/Duka', label: 'Tanda Kasih Sakit/Duka', icon: '🩺', price: 150000 },
+    { id: 'Acara & Konsumsi Hari Guru', label: 'Acara Hari Guru', icon: '👩‍🏫', price: 200000 },
+    { id: 'Konsumsi & Snack Murid', label: 'Snack Murid', icon: '🧃', price: 100000 },
+    { id: 'Souvenir & Hadiah Murid/Guru', label: 'Souvenir & Hadiah', icon: '🎁', price: 150000 },
+    { id: 'Perlengkapan Kelas & Pensi', label: 'Pensi & Kelas', icon: '🎨', price: 100000 },
+    { id: 'Setoran Uang Kadeudeuh ke POMG', label: 'Setor Kadeudeuh POMG', icon: '🕌', price: 2000000 },
+    { id: 'Lain-lain', label: 'Biaya Lain-lain', icon: '📦', price: 50000 },
+  ]);
+
+  // Form State: Setor (Deposit) - Default kelipatan 30 rb
   const [depositForm, setDepositForm] = useState({
     studentId: '',
     category: 'KAS_MASUK' as 'KAS_MASUK' | 'THR_MASUK',
-    amount: 200000,
+    amount: DEFAULT_NOMINAL_SETTINGS.kasMonthlyFee,
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'Transfer Mandiri',
     note: '',
@@ -208,10 +248,10 @@ export default function HomePage() {
     reader.readAsDataURL(file);
   };
 
-  // Form State: Pengeluaran (Expense)
+  // Form State: Pengeluaran (Expense) - Default Kostum Angkatan
   const [expenseForm, setExpenseForm] = useState({
     categoryType: 'PENGELUARAN' as 'PENGELUARAN' | 'THR_KELUAR',
-    expenseCategory: 'Tanda Kasih Sakit/Duka',
+    expenseCategory: 'Kostum Angkatan',
     description: '',
     qty: 1,
     unitPrice: 150000,
@@ -221,8 +261,36 @@ export default function HomePage() {
     note: 'Struk / Bukti Terlampir',
   });
 
-  // Load Boomer mode & Saved Login from localStorage
+  // Save & Sync Nominal Settings for Admin
+  const handleSaveNominalSettings = (newSettings: NominalSettings) => {
+    setNominalSettings(newSettings);
+    setAdminNominalEdit(newSettings);
+    localStorage.setItem('ambu_nominal_settings', JSON.stringify(newSettings));
+    showToast('Pengaturan nominal berhasil disimpan & disinkronkan ke seluruh sistem! 💾✨', 'success');
+  };
+
+  const handleResetNominalSettings = () => {
+    setNominalSettings(DEFAULT_NOMINAL_SETTINGS);
+    setAdminNominalEdit(DEFAULT_NOMINAL_SETTINGS);
+    localStorage.setItem('ambu_nominal_settings', JSON.stringify(DEFAULT_NOMINAL_SETTINGS));
+    showToast('Pengaturan nominal berhasil dikembalikan ke standar (Kelipatan Rp 30.000)! 🔄', 'info');
+  };
+
+  // Load Boomer mode, Saved Login, and Nominal Settings from localStorage
   useEffect(() => {
+    const savedNominal = localStorage.getItem('ambu_nominal_settings');
+    if (savedNominal) {
+      try {
+        const parsed = JSON.parse(savedNominal);
+        if (parsed.targetKasPerStudent && parsed.targetKadeudeuhPerStudent) {
+          setNominalSettings(parsed);
+          setAdminNominalEdit(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to parse nominal settings', err);
+      }
+    }
+
     const savedBoomer = localStorage.getItem('ambu_boomer_mode');
     if (savedBoomer === 'true') {
       setIsBoomerMode(true);
@@ -391,7 +459,7 @@ Telah Terima Dari:
 (Ananda *${receipt.studentName}* - Absen #${receipt.noAbsen})
 
 Untuk Pembayaran:
-*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin 4 B Bilal Bin Rabah' : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}*
+*${receipt.category === 'KAS_MASUK' ? 'Iuran Kas Rutin 4 B Bilal Bin Rabah' : 'Iuran Uang Kadeudeuh Guru & Karyawan'}*
 
 Metode Bayar: *${receipt.paymentMethod}*
 
@@ -560,7 +628,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         (t) => t.studentId === s.id && t.category === 'KAS_MASUK'
       );
       const totalKasPaid = kasTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      const kasLunas = totalKasPaid >= 200000;
+      const kasLunas = totalKasPaid >= nominalSettings.targetKasPerStudent;
       const kasBertahap = totalKasPaid > 0 && !kasLunas;
 
       let lastKasDateFormatted = '';
@@ -578,7 +646,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         (t) => t.studentId === s.id && t.category === 'THR_MASUK'
       );
       const totalThrPaid = thrTxList.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      const thrLunas = totalThrPaid >= 100000;
+      const thrLunas = totalThrPaid >= nominalSettings.targetKadeudeuhPerStudent;
       const thrBertahap = totalThrPaid > 0 && !thrLunas;
 
       let lastThrDateFormatted = '';
@@ -604,7 +672,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         lastThrDateFormatted,
       };
     });
-  }, [students, transactions]);
+  }, [students, transactions, nominalSettings]);
 
   const myChildStatus = useMemo(() => {
     if (!currentMamaStudent) return null;
@@ -660,13 +728,14 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
   // Open Deposit Modal with Pre-selected Student
   const handleOpenDepositForStudent = (student: StudentItem, category: 'KAS_MASUK' | 'THR_MASUK' = 'KAS_MASUK') => {
+    const isKas = category === 'KAS_MASUK';
     setDepositForm({
       studentId: String(student.id),
       category,
-      amount: category === 'KAS_MASUK' ? 200000 : 100000,
+      amount: isKas ? nominalSettings.kasMonthlyFee : nominalSettings.targetKadeudeuhPerStudent,
       date: new Date().toISOString().split('T')[0],
       paymentMethod: 'Transfer Mandiri',
-      note: `Setoran kas/THR ananda ${student.nickname}`,
+      note: `Setoran ${isKas ? 'kas' : 'uang kadeudeuh'} ananda ${student.nickname}`,
       customStudentName: `${student.fullName} (${student.nickname})`,
       proofImage: null,
     });
@@ -690,7 +759,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
     const desc =
       depositForm.category === 'KAS_MASUK'
         ? `Diterima uang kas dari ${selStudent ? selStudent.fullName : studentName}`
-        : `Diterima uang THR dari ${selStudent ? selStudent.fullName : studentName}`;
+        : `Diterima uang kadeudeuh dari ${selStudent ? selStudent.fullName : studentName}`;
 
     try {
       const res = await fetch('/api/transactions', {
@@ -720,7 +789,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         });
         setIsDepositModalOpen(false);
         showToast(
-          `Alhamdulillah! Pembayaran ${depositForm.category === 'KAS_MASUK' ? 'Kas' : 'THR'} ${selStudent?.nickname || ''} tersimpan! 🎉`,
+          `Alhamdulillah! Pembayaran ${depositForm.category === 'KAS_MASUK' ? 'Kas' : 'Uang Kadeudeuh'} ${selStudent?.nickname || ''} tersimpan! 🎉`,
           'success'
         );
         fetchData();
@@ -835,9 +904,11 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         'Nama Lengkap': s.fullName,
         'Nama Panggilan': s.nickname,
         'Total Kas Dibayar (Rp)': s.totalKasPaid,
-        'Status Kas': s.kasLunas ? 'LUNAS' : 'BELUM',
-        'Total THR Dibayar (Rp)': s.totalThrPaid,
-        'Status THR': s.thrLunas ? 'LUNAS' : 'BELUM',
+        'Target Kas (Rp)': nominalSettings.targetKasPerStudent,
+        'Status Kas': s.kasLunas ? 'LUNAS' : s.kasBertahap ? 'BERTAHAP' : 'BELUM',
+        'Total Kadeudeuh Dibayar (Rp)': s.totalThrPaid,
+        'Target Kadeudeuh (Rp)': nominalSettings.targetKadeudeuhPerStudent,
+        'Status Kadeudeuh': s.thrLunas ? 'LUNAS' : s.thrBertahap ? 'BERTAHAP' : 'BELUM',
       }));
 
       const wb = XLSX.utils.book_new();
@@ -900,19 +971,24 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
     const lunasKasList = studentPaymentStatus.filter((s) => s.kasLunas);
     const belumKasList = studentPaymentStatus.filter((s) => !s.kasLunas);
+    const lunasKadeudeuhList = studentPaymentStatus.filter((s) => s.thrLunas);
+    const belumKadeudeuhList = studentPaymentStatus.filter((s) => !s.thrLunas);
 
-    return `*LAPORAN KAS & THR KELAS 4 B BILAL BIN RABAH* 🌸
+    return `*LAPORAN KAS & UANG KADEUDEUH KELAS 4 B BILAL BIN RABAH* 🌸
 *SD ISLAM TAHUN AJARAN 2026-2027*
 Per: ${todayStr}
 
 ━━━━━━━━━━━━━━━━━━━━
-💰 *RINGKASAN KAS KELAS:*
-• Total Pemasukan: Rp ${stats.totalKasMasuk.toLocaleString('id-ID')}
-• Total Pengeluaran: Rp ${stats.totalKasKeluar.toLocaleString('id-ID')}
-• *SISA SALDO KAS: Rp ${stats.saldoKas.toLocaleString('id-ID')}*
+💰 *RINGKASAN KAS KELAS (Kelipatan Rp ${nominalSettings.kasMonthlyFee.toLocaleString('id-ID')}/Bulan):*
+• Target per Murid: Rp ${nominalSettings.targetKasPerStudent.toLocaleString('id-ID')} (${nominalSettings.kasMonthsTarget} Bulan)
+• Total Pemasukan Kas: Rp ${stats.totalKasMasuk.toLocaleString('id-ID')}
+• Total Pengeluaran Kas: Rp ${stats.totalKasKeluar.toLocaleString('id-ID')}
+• *SISA SALDO KAS AKTIF: Rp ${stats.saldoKas.toLocaleString('id-ID')}*
 
-🎁 *RINGKASAN UANG THR:*
-• Saldo THR Terkumpul: Rp ${stats.saldoThr.toLocaleString('id-ID')}
+🎁 *RINGKASAN UANG KADEUDEUH GURU & KARYAWAN:*
+• Target per Murid: Rp ${nominalSettings.targetKadeudeuhPerStudent.toLocaleString('id-ID')}
+• Saldo Kadeudeuh Terkumpul: Rp ${stats.saldoThr.toLocaleString('id-ID')}
+• Sudah Lunas Kadeudeuh: ${lunasKadeudeuhList.length}/25 Anak
 ━━━━━━━━━━━━━━━━━━━━
 
 ✅ *SUDAH BAYAR KAS (${lunasKasList.length}/25 Anak):*
@@ -930,15 +1006,15 @@ ${
 }
 
 ━━━━━━━━━━━━━━━━━━━━
-📌 *Rekening Kas Kelas:*
+📌 *Rekening Kas & Uang Kadeudeuh:*
 💳 BNI: *2102403976*
 a/n Nia Mulyawati (Mama Athalla - Bendahara)
-Konfirmasi setor: Japri bukti transfer ya Bunda/Mama 🙏
+Konfirmasi setor: Silakan submit di web atau japri bukti transfer ya Bunda/Mama 🙏
 
 _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐
 
 Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
-  }, [studentPaymentStatus, stats]);
+  }, [studentPaymentStatus, stats, nominalSettings]);
 
   const copyCurrentWaMessage = () => {
     const textToCopy = waFormatTab === 'CONTRENG' ? waContrengText : waReportText;
@@ -998,7 +1074,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
             </motion.div>
             <div className="min-w-0">
               <h1 className="text-xs sm:text-sm md:text-base font-black text-slate-900 leading-tight flex items-center gap-1 truncate">
-                Kas & THR 4 B Bilal Bin Rabah <span className="inline-block animate-bounce">🌸</span>
+                Kas & Uang Kadeudeuh 4 B Bilal Bin Rabah <span className="inline-block animate-bounce">🌸</span>
               </h1>
               <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">
                 Periode Mei 2026 s/d Mei 2027 • SD Islam
@@ -1124,7 +1200,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <span className="bg-purple-500/40 text-[10px] px-2 py-0.5 rounded-full border border-purple-400/40 font-bold">Mode Admin</span>
                 </div>
                 <p className="text-[11px] text-purple-100/70 truncate">
-                  Memiliki akses catat pengeluaran & hapus transaksi kas.
+                  Memiliki akses catat pengeluaran, ubah master nominal kelipatan Rp 30.000, & kelola Data Center.
                 </p>
               </div>
             </div>
@@ -1155,12 +1231,15 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 <div className="text-xs md:text-sm text-slate-600 font-semibold mt-0.5">
                   Ananda: <strong>{currentMamaStudent.fullName}</strong> (Absen #{currentMamaStudent.no})
                 </div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   <span className={`badge ${myChildStatus.kasLunas ? 'badge-success' : 'badge-warning'} text-[11px]`}>
-                    Kas: {myChildStatus.kasLunas ? '✅ Lunas' : '⏳ Belum Lunas'}
+                    Kas: Rp {myChildStatus.totalKasPaid.toLocaleString('id-ID')} / {nominalSettings.targetKasPerStudent.toLocaleString('id-ID')} {myChildStatus.kasLunas ? '✅' : '⏳'}
                   </span>
                   <span className={`badge ${myChildStatus.thrLunas ? 'badge-success' : 'badge-warning'} text-[11px]`}>
-                    THR: {myChildStatus.thrLunas ? '✅ Lunas' : '⏳ Belum Lunas'}
+                    Kadeudeuh: Rp {myChildStatus.totalThrPaid.toLocaleString('id-ID')} / {nominalSettings.targetKadeudeuhPerStudent.toLocaleString('id-ID')} {myChildStatus.thrLunas ? '✅' : '⏳'}
+                  </span>
+                  <span className="text-[11px] font-black text-teal-900 bg-white/80 px-2 py-0.5 rounded-md border border-teal-200">
+                    Total: Rp {(myChildStatus.totalKasPaid + myChildStatus.totalThrPaid).toLocaleString('id-ID')}
                   </span>
                 </div>
               </div>
@@ -1206,6 +1285,149 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
             </motion.button>
           </motion.div>
         )}
+
+        {/* FITUR KHUSUS DI SELAMAT DATANG: NOMINAL YANG SUDAH DIBAYAR SETIAP ANAK */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl p-3.5 md:p-4 border-2 border-teal-200/90 shadow-md space-y-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-teal-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center font-black text-lg shadow-sm">
+                🌸
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
+                  <span>Selamat Datang: Nominal Terbayar Setiap Anak</span>
+                  <span className="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-bold">
+                    Kelipatan Rp {nominalSettings.kasMonthlyFee.toLocaleString('id-ID')}/bln
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-500 font-semibold">
+                  Transparansi iuran kas & uang kadeudeuh yang sudah disetor per anak (25 Murid 4 B Bilal Bin Rabah)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative min-w-[170px] sm:min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari anak bunda..."
+                  value={welcomeStudentSearch}
+                  onChange={(e) => setWelcomeStudentSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold focus:border-teal-500 outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWelcomeNominalOpen(!isWelcomeNominalOpen)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-all"
+                title={isWelcomeNominalOpen ? 'Sembunyikan rincian' : 'Tampilkan rincian'}
+              >
+                <span>{isWelcomeNominalOpen ? 'Tutup' : 'Buka'}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isWelcomeNominalOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {isWelcomeNominalOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-2 overflow-hidden"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[310px] overflow-y-auto p-1 pr-1.5 scrollbar-thin">
+                  {studentPaymentStatus
+                    .filter((s) => {
+                      if (!welcomeStudentSearch.trim()) return true;
+                      const q = welcomeStudentSearch.toLowerCase();
+                      return (
+                        s.fullName.toLowerCase().includes(q) ||
+                        s.nickname.toLowerCase().includes(q) ||
+                        String(s.no) === welcomeStudentSearch.trim()
+                      );
+                    })
+                    .map((s) => {
+                      const totalAll = s.totalKasPaid + s.totalThrPaid;
+                      const isMyChild = currentMamaStudent && currentMamaStudent.id === s.id;
+                      return (
+                        <div
+                          key={s.id}
+                          className={`p-2.5 rounded-2xl border transition-all flex flex-col justify-between gap-1.5 ${
+                            isMyChild
+                              ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/40 shadow-sm'
+                              : 'bg-slate-50/70 border-slate-200/80 hover:bg-white hover:border-teal-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${getAvatarBg(s.no)}`}>
+                                {s.no}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-black text-xs text-slate-900 truncate flex items-center gap-1">
+                                  <span>{s.nickname}</span>
+                                  {isMyChild && <span className="text-[9px] bg-amber-200 text-amber-900 px-1 rounded font-bold">Anak Bunda</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-500 truncate">{s.fullName}</div>
+                              </div>
+                            </div>
+                            <span className="text-[11px] font-black text-teal-900 bg-teal-100/80 px-2 py-0.5 rounded-lg shrink-0">
+                              Rp {totalAll.toLocaleString('id-ID')}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-slate-200/60">
+                            <div className="bg-white p-1.5 rounded-xl border border-slate-200 flex flex-col">
+                              <span className="text-slate-400 font-semibold text-[9px]">Uang Kas:</span>
+                              <span className="font-black text-slate-800 text-[11px] truncate">
+                                Rp {s.totalKasPaid.toLocaleString('id-ID')}
+                              </span>
+                              <span className={`font-bold text-[9px] mt-0.5 ${s.kasLunas ? 'text-emerald-700' : s.kasBertahap ? 'text-blue-600' : 'text-slate-400'}`}>
+                                {s.kasLunas ? '✅ Lunas' : s.kasBertahap ? '⏳ Bertahap' : 'Belum Bayar'}
+                              </span>
+                            </div>
+
+                            <div className="bg-white p-1.5 rounded-xl border border-slate-200 flex flex-col">
+                              <span className="text-slate-400 font-semibold text-[9px]">Kadeudeuh:</span>
+                              <span className="font-black text-slate-800 text-[11px] truncate">
+                                Rp {s.totalThrPaid.toLocaleString('id-ID')}
+                              </span>
+                              <span className={`font-bold text-[9px] mt-0.5 ${s.thrLunas ? 'text-amber-700' : s.thrBertahap ? 'text-blue-600' : 'text-slate-400'}`}>
+                                {s.thrLunas ? '✅ Lunas' : s.thrBertahap ? '⏳ Bertahap' : 'Belum Bayar'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudentDetail(s)}
+                              className="flex-1 py-1 rounded-lg text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 text-center"
+                            >
+                              Detail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
+                              className="flex-1 py-1 rounded-lg text-[10px] font-black text-white bg-teal-600 hover:bg-teal-700 text-center shadow-xs"
+                            >
+                              Setor Kas
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
         
         {/* PWA: NOTICE TAMBAH KE BERANDA HP (SEPERTI APLIKASI) */}
         {isInstallNoticeVisible && (
@@ -1268,7 +1490,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   Laporan Transparan Kelas 4 B Bilal Bin Rabah
                 </div>
                 <h2 className="text-lg md:text-2xl font-black mt-1 tracking-tight">
-                  Buku Kas & Uang THR Murid 🌸
+                  Buku Kas & Uang Kadeudeuh Murid 🌸
                 </h2>
               </div>
 
@@ -1305,7 +1527,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/10">
                 <div className="text-[11px] text-amber-200 font-bold flex items-center gap-1">
-                  <Gift className="w-3.5 h-3.5 text-amber-300" /> Uang THR
+                  <Gift className="w-3.5 h-3.5 text-amber-300" /> Uang Kadeudeuh
                 </div>
                 <div className="text-sm md:text-base font-black text-amber-200 mt-0.5 truncate">
                   Rp {stats.saldoThr.toLocaleString('id-ID')}
@@ -1331,7 +1553,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   setDepositForm({
                     studentId: prefillStudentId,
                     category: 'KAS_MASUK',
-                    amount: 200000,
+                    amount: nominalSettings.kasMonthlyFee,
                     date: new Date().toISOString().split('T')[0],
                     paymentMethod: 'Transfer Mandiri',
                     note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
@@ -1347,7 +1569,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 <span>
                   {currentMamaStudent
                     ? `SETOR KAS UNTUK ${currentMamaStudent.nickname.toUpperCase()}`
-                    : 'KLIK DI SINI UNTUK SETOR KAS / THR'}
+                    : 'KLIK DI SINI UNTUK SETOR KAS / KADEUDEUH'}
                 </span>
               </motion.button>
 
@@ -1357,7 +1579,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   onClick={() => {
                     setExpenseForm({
                       categoryType: 'PENGELUARAN',
-                      expenseCategory: 'Tanda Kasih Sakit/Duka',
+                      expenseCategory: 'Kostum Angkatan',
                       description: '',
                       qty: 1,
                       unitPrice: 150000,
@@ -1446,6 +1668,18 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
             </button>
 
             <button
+              onClick={() => setActiveTab('datacenter')}
+              className={`px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'datacenter'
+                  ? 'bg-purple-800 text-white shadow-md shadow-purple-900/30'
+                  : 'bg-white text-slate-700 hover:bg-purple-50 border border-purple-200'
+              }`}
+            >
+              <Database className="w-4 h-4 text-purple-400" />
+              <span>Data Center</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('info')}
               className={`px-3 py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'info'
@@ -1488,7 +1722,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-black text-xs md:text-sm text-white flex items-center gap-1.5 truncate">
-                      <span>Target Kas & THR Kelas 4 B Bilal Bin Rabah</span>
+                      <span>Target Kas & Uang Kadeudeuh Kelas 4 B Bilal Bin Rabah</span>
                       <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                     </h4>
                     <p className="text-[10px] text-teal-200 truncate">25 Murid • Transparansi TA 2026/2027</p>
@@ -1501,50 +1735,58 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                 {/* Progress Kas */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-black">
-                    <span className="text-teal-200 flex items-center gap-1">
-                      <Wallet className="w-3 h-3" />
-                      <span>Kas Rutin ({studentPaymentStatus.filter(s => s.kasLunas).length}/25 Lunas)</span>
-                    </span>
-                    <span className="text-white font-mono font-black">
-                      {Math.min(100, Math.round((stats.totalKasMasuk / 5000000) * 100))}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
-                    <div
-                      style={{ width: `${Math.min(100, (stats.totalKasMasuk / 5000000) * 100)}%` }}
-                      className="bg-gradient-to-r from-emerald-400 to-teal-300 h-full rounded-full transition-all duration-700"
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-300 font-medium">
-                    <span>Terkumpul: <strong>Rp {stats.totalKasMasuk.toLocaleString('id-ID')}</strong></span>
-                    <span>Target: Rp 5.000.000</span>
-                  </div>
-                </div>
+                {(() => {
+                  const targetKasTotal = nominalSettings.targetKasPerStudent * students.length;
+                  const targetKadeudeuhTotal = nominalSettings.targetKadeudeuhPerStudent * students.length;
+                  return (
+                    <>
+                      <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-black">
+                          <span className="text-teal-200 flex items-center gap-1">
+                            <Wallet className="w-3 h-3" />
+                            <span>Kas Rutin ({studentPaymentStatus.filter(s => s.kasLunas).length}/25 Lunas)</span>
+                          </span>
+                          <span className="text-white font-mono font-black">
+                            {Math.min(100, Math.round((stats.totalKasMasuk / targetKasTotal) * 100))}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
+                          <div
+                            style={{ width: `${Math.min(100, (stats.totalKasMasuk / targetKasTotal) * 100)}%` }}
+                            className="bg-gradient-to-r from-emerald-400 to-teal-300 h-full rounded-full transition-all duration-700"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-300 font-medium">
+                          <span>Terkumpul: <strong>Rp {stats.totalKasMasuk.toLocaleString('id-ID')}</strong></span>
+                          <span>Target: Rp {targetKasTotal.toLocaleString('id-ID')} (Rp {(nominalSettings.targetKasPerStudent / 1000).toFixed(0)}k/anak)</span>
+                        </div>
+                      </div>
 
-                {/* Progress THR */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-black">
-                    <span className="text-amber-200 flex items-center gap-1">
-                      <Gift className="w-3 h-3" />
-                      <span>Uang THR ({studentPaymentStatus.filter(s => s.thrLunas).length}/25 Lunas)</span>
-                    </span>
-                    <span className="text-white font-mono font-black">
-                      {Math.min(100, Math.round((stats.totalThrMasuk / 2500000) * 100))}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
-                    <div
-                      style={{ width: `${Math.min(100, (stats.totalThrMasuk / 2500000) * 100)}%` }}
-                      className="bg-gradient-to-r from-amber-400 to-yellow-300 h-full rounded-full transition-all duration-700"
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-300 font-medium">
-                    <span>Terkumpul: <strong>Rp {stats.totalThrMasuk.toLocaleString('id-ID')}</strong></span>
-                    <span>Target: Rp 2.500.000</span>
-                  </div>
-                </div>
+                      {/* Progress Kadeudeuh */}
+                      <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2.5 border border-white/10 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-black">
+                          <span className="text-amber-200 flex items-center gap-1">
+                            <Gift className="w-3 h-3" />
+                            <span>Uang Kadeudeuh ({studentPaymentStatus.filter(s => s.thrLunas).length}/25 Lunas)</span>
+                          </span>
+                          <span className="text-white font-mono font-black">
+                            {Math.min(100, Math.round((stats.totalThrMasuk / targetKadeudeuhTotal) * 100))}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5">
+                          <div
+                            style={{ width: `${Math.min(100, (stats.totalThrMasuk / targetKadeudeuhTotal) * 100)}%` }}
+                            className="bg-gradient-to-r from-amber-400 to-yellow-300 h-full rounded-full transition-all duration-700"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-300 font-medium">
+                          <span>Terkumpul: <strong>Rp {stats.totalThrMasuk.toLocaleString('id-ID')}</strong></span>
+                          <span>Target: Rp {targetKadeudeuhTotal.toLocaleString('id-ID')} (Rp {(nominalSettings.targetKadeudeuhPerStudent / 1000).toFixed(0)}k/anak)</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </motion.div>
 
@@ -1601,7 +1843,17 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                       : 'bg-teal-50 text-teal-800 border border-teal-200'
                   }`}
                 >
-                  THR Lunas ({studentPaymentStatus.filter((s) => s.thrLunas).length})
+                  Kadeudeuh Lunas ({studentPaymentStatus.filter((s) => s.thrLunas).length})
+                </button>
+                <button
+                  onClick={() => setStudentFilter('THR_BELUM')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                    studentFilter === 'THR_BELUM'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  Kadeudeuh Belum ({studentPaymentStatus.filter((s) => !s.thrLunas).length})
                 </button>
               </div>
             </div>
@@ -1692,7 +1944,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
                       <div>
                         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                          Uang THR
+                          Uang Kadeudeuh
                         </div>
                         <div className="mt-0.5 flex items-center justify-between gap-1 flex-wrap">
                           {s.thrLunas ? (
@@ -1789,7 +2041,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     { id: 'ALL', label: 'Semua' },
                     { id: 'KAS_MASUK', label: 'Kas Masuk' },
                     { id: 'PENGELUARAN', label: 'Pengeluaran' },
-                    { id: 'THR_MASUK', label: 'THR' },
+                    { id: 'THR_MASUK', label: 'Kadeudeuh' },
                   ].map((tab) => {
                     const isSelected = ledgerCategoryFilter === tab.id;
                     return (
@@ -1825,7 +2077,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span className="text-xs font-black uppercase tracking-wider text-teal-200">
-                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang THR' : 'Ringkasan Saldo 4 B Bilal Bin Rabah'}
+                    {ledgerCategoryFilter === 'THR_MASUK' ? 'Ringkasan Uang Kadeudeuh' : 'Ringkasan Saldo 4 B Bilal Bin Rabah'}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-teal-100">
@@ -2016,7 +2268,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
             <div className="sm:hidden bg-gradient-to-r from-teal-900 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-lg border border-teal-700/50">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300">
-                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang THR' : 'Total Saldo 4 B Bilal Bin Rabah'}
+                  {ledgerCategoryFilter === 'THR_MASUK' ? 'Total Saldo Uang Kadeudeuh' : 'Total Saldo 4 B Bilal Bin Rabah'}
                 </div>
                 <div className="text-lg font-black text-amber-300 mt-0.5">
                   Rp {(ledgerCategoryFilter === 'THR_MASUK' ? stats.saldoThr : stats.saldoKas).toLocaleString('id-ID')}
@@ -2028,6 +2280,526 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 </div>
                 <div className="text-[11px] font-bold text-rose-300">
                   - Keluar: Rp {((ledgerCategoryFilter === 'THR_MASUK' ? stats.totalThrKeluar : stats.totalKasKeluar) / 1000).toFixed(0)}k
+                </div>
+              </div>
+            </div>
+          </motion.section>
+        )}
+
+        {/* TAB: DATA CENTER (PENGATURAN NOMINAL, KELIPATAN 30RB, KATEGORI PENGELUARAN, MASTER DATA) */}
+        {activeTab === 'datacenter' && (
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            {/* Header Data Center */}
+            <div className="bg-white p-4 md:p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-700 to-slate-900 text-white flex items-center justify-center shadow-md">
+                  <Database className="w-6 h-6 text-amber-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-slate-900 text-base md:text-lg">
+                      Data Center & Pengaturan Kelas 4 B Bilal Bin Rabah ⚙️
+                    </h3>
+                    <span className="badge badge-success text-[10px] py-0.5">Admin & Sincron</span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Atur nominal iuran kas bulanan (kelipatan Rp 30rb), target tahunan, kategori pengeluaran (kostum angkatan), dan cadangan data.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={fetchData}
+                  className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-black flex items-center gap-1.5 shadow-xs"
+                  title="Sinkronkan ulang data dari database server"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Sincron Server</span>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleExportExcel}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export Excel</span>
+                </motion.button>
+              </div>
+            </div>
+
+            {/* 1. KARTU PENGATURAN NOMINAL (EDITABLE ADMIN & SINKRON SELURUH WEB) */}
+            <div className="bg-white rounded-3xl p-4 md:p-6 border-2 border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                    <Sliders className="w-5 h-5 text-amber-800" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm md:text-base">
+                      1. Pengaturan Nominal Iuran Kas & Kadeudeuh (Bisa Diedit Admin)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Standar kelipatan Rp 30.000. Tersinkronisasi otomatis ke seluruh web.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Real-Time Sync</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Form Input Nominal Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Nominal Kas per Bulan (Kelipatan 30rb) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                    Iuran Kas Bulanan (Rp)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      step="5000"
+                      min="5000"
+                      value={adminNominalEdit.kasMonthlyFee}
+                      onChange={(e) => {
+                        const fee = Number(e.target.value) || 0;
+                        setAdminNominalEdit({
+                          ...adminNominalEdit,
+                          kasMonthlyFee: fee,
+                          targetKasPerStudent: fee * adminNominalEdit.kasMonthsTarget,
+                        });
+                      }}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border-2 border-slate-300 focus:border-teal-600 text-sm font-black text-slate-900 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    {[20000, 30000, 40000, 50000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          setAdminNominalEdit({
+                            ...adminNominalEdit,
+                            kasMonthlyFee: preset,
+                            targetKasPerStudent: preset * adminNominalEdit.kasMonthsTarget,
+                          });
+                        }}
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg border transition-all ${
+                          adminNominalEdit.kasMonthlyFee === preset
+                            ? 'bg-teal-700 text-white border-teal-700'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-teal-300'
+                        }`}
+                      >
+                        {preset / 1000}k
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-teal-700 font-bold">
+                    Default: Rp 30.000 / bulan (kelipatan 30rb)
+                  </p>
+                </div>
+
+                {/* Target Bulan Kas */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                    Jumlah Bulan Target
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={adminNominalEdit.kasMonthsTarget}
+                      onChange={(e) => {
+                        const months = Number(e.target.value) || 1;
+                        setAdminNominalEdit({
+                          ...adminNominalEdit,
+                          kasMonthsTarget: months,
+                          targetKasPerStudent: adminNominalEdit.kasMonthlyFee * months,
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 focus:border-teal-600 text-sm font-black text-slate-900 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    {[10, 11, 12].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          setAdminNominalEdit({
+                            ...adminNominalEdit,
+                            kasMonthsTarget: m,
+                            targetKasPerStudent: adminNominalEdit.kasMonthlyFee * m,
+                          });
+                        }}
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg border transition-all ${
+                          adminNominalEdit.kasMonthsTarget === m
+                            ? 'bg-teal-700 text-white border-teal-700'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-teal-300'
+                        }`}
+                      >
+                        {m} Bulan
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Periode ajaran (Default: 10 bulan)
+                  </p>
+                </div>
+
+                {/* Target Total Kas per Siswa */}
+                <div className="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-200 space-y-2">
+                  <label className="block text-[11px] font-black text-teal-900 uppercase tracking-wider">
+                    Target Kas / Siswa (Rp)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-teal-600">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      step="10000"
+                      min="10000"
+                      value={adminNominalEdit.targetKasPerStudent}
+                      onChange={(e) => {
+                        setAdminNominalEdit({
+                          ...adminNominalEdit,
+                          targetKasPerStudent: Number(e.target.value) || 0,
+                        });
+                      }}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border-2 border-teal-300 focus:border-teal-700 text-sm font-black text-teal-950 bg-white"
+                    />
+                  </div>
+                  <p className="text-[10px] text-teal-800 font-bold">
+                    = Rp {adminNominalEdit.kasMonthlyFee.toLocaleString('id-ID')} × {adminNominalEdit.kasMonthsTarget} bln = Rp {(adminNominalEdit.kasMonthlyFee * adminNominalEdit.kasMonthsTarget).toLocaleString('id-ID')}
+                  </p>
+                </div>
+
+                {/* Target Kadeudeuh per Siswa */}
+                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
+                  <label className="block text-[11px] font-black text-amber-900 uppercase tracking-wider">
+                    Target Kadeudeuh / Siswa (Rp)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-amber-600">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      step="10000"
+                      min="10000"
+                      value={adminNominalEdit.targetKadeudeuhPerStudent}
+                      onChange={(e) => {
+                        setAdminNominalEdit({
+                          ...adminNominalEdit,
+                          targetKadeudeuhPerStudent: Number(e.target.value) || 0,
+                        });
+                      }}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border-2 border-amber-300 focus:border-amber-700 text-sm font-black text-amber-950 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    {[50000, 100000, 150000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          setAdminNominalEdit({
+                            ...adminNominalEdit,
+                            targetKadeudeuhPerStudent: preset,
+                          });
+                        }}
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg border transition-all ${
+                          adminNominalEdit.targetKadeudeuhPerStudent === preset
+                            ? 'bg-amber-600 text-white border-amber-600'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                        }`}
+                      >
+                        {preset / 1000}k
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-amber-800 font-bold">
+                    Default: Rp 100.000 / murid
+                  </p>
+                </div>
+              </div>
+
+              {/* Total Target Angkatan (25 Siswa) */}
+              <div className="p-3 bg-gradient-to-r from-slate-900 to-teal-950 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+                <div className="space-y-0.5 text-center sm:text-left">
+                  <div className="text-[11px] font-bold text-teal-300">
+                    Target Kas 25 Siswa: Rp {(adminNominalEdit.targetKasPerStudent * students.length).toLocaleString('id-ID')} • Target Kadeudeuh 25 Siswa: Rp {(adminNominalEdit.targetKadeudeuhPerStudent * students.length).toLocaleString('id-ID')}
+                  </div>
+                  <div className="text-xs text-slate-300">
+                    Grand Total Target Terkumpul: <strong className="text-amber-300 text-sm">Rp {((adminNominalEdit.targetKasPerStudent + adminNominalEdit.targetKadeudeuhPerStudent) * students.length).toLocaleString('id-ID')}</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={() => handleSaveNominalSettings(adminNominalEdit)}
+                    className="bg-teal-500 hover:bg-teal-400 text-teal-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>SIMPAN PENGATURAN</span>
+                  </motion.button>
+
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={handleResetNominalSettings}
+                    className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1 border border-white/20"
+                    title="Kembalikan ke standar awal Rp 30.000/bln"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. MASTER KATEGORI PENGELUARAN (TERMASUK KOSTUM ANGKATAN) */}
+            <div className="bg-white rounded-3xl p-4 md:p-6 border-2 border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-900 flex items-center justify-center font-bold">
+                    <Layers className="w-5 h-5 text-purple-800" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm md:text-base">
+                      2. Master Kategori Pengeluaran Kas (Termasuk Kostum Angkatan)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Preset anggaran resmi pengeluaran kelas 4B Bilal Bin Rabah.
+                    </p>
+                  </div>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsExpenseModalOpen(true)}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-sm"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>+ Catat Pengeluaran Baru</span>
+                </motion.button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {expenseCategories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    className={`p-3 rounded-2xl border transition-all ${
+                      cat.id === 'Kostum Angkatan'
+                        ? 'border-indigo-400 bg-indigo-50/50 ring-2 ring-indigo-300/40'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl">{cat.icon}</span>
+                      {cat.id === 'Kostum Angkatan' && (
+                        <span className="badge badge-success text-[9px] py-0 px-1.5 font-bold">
+                          ✨ BARU
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-black text-slate-900 text-xs mt-1.5">
+                      {cat.label}
+                    </div>
+                    <div className="text-[11px] font-mono font-bold text-teal-800 mt-0.5">
+                      Estimasi: Rp {cat.price.toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. MASTER DATA 25 MURID & STATUS TERBAYAR REAL-TIME */}
+            <div className="bg-white rounded-3xl p-4 md:p-6 border-2 border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-900 flex items-center justify-center font-bold">
+                    <Users className="w-5 h-5 text-teal-800" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm md:text-base">
+                      3. Master Data 25 Murid & Rekap Terbayar
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Daftar resmi seluruh anak dengan nominal kas dan kadeudeuh yang telah masuk.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-xs font-black text-teal-900 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-xl">
+                  Total Murid: {students.length} Anak
+                </div>
+              </div>
+
+              {/* Table Master 25 Murid */}
+              <div className="table-responsive">
+                <table className="ods-table">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>Panggilan</th>
+                      <th>Nama Lengkap</th>
+                      <th className="text-right">Kas Terbayar</th>
+                      <th>Status Kas</th>
+                      <th className="text-right">Kadeudeuh</th>
+                      <th>Status Kadeudeuh</th>
+                      <th className="text-right">Total Terbayar</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentPaymentStatus.map((st) => (
+                      <tr key={st.id}>
+                        <td className="font-bold text-slate-700 text-xs">#{st.no}</td>
+                        <td className="font-black text-slate-900 text-xs">{st.nickname}</td>
+                        <td className="font-medium text-slate-700 text-xs truncate max-w-[180px]">
+                          {st.fullName}
+                        </td>
+                        <td className="text-right font-black text-emerald-800 text-xs">
+                          Rp {st.totalKasPaid.toLocaleString('id-ID')}
+                        </td>
+                        <td>
+                          {st.kasLunas ? (
+                            <span className="badge badge-success text-[10px]">Lunas</span>
+                          ) : (
+                            <span className="badge badge-warning text-[10px]">
+                              -Rp {(nominalSettings.targetKasPerStudent - st.totalKasPaid).toLocaleString('id-ID')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-right font-black text-amber-800 text-xs">
+                          Rp {st.totalThrPaid.toLocaleString('id-ID')}
+                        </td>
+                        <td>
+                          {st.thrLunas ? (
+                            <span className="badge badge-success text-[10px]">Lunas</span>
+                          ) : st.thrBertahap ? (
+                            <span className="badge bg-amber-50 text-amber-900 border border-amber-200 text-[10px]">
+                              Sebagian
+                            </span>
+                          ) : (
+                            <span className="badge badge-warning text-[10px]">Belum</span>
+                          )}
+                        </td>
+                        <td className="text-right font-black text-teal-950 text-xs">
+                          Rp {(st.totalKasPaid + st.totalThrPaid).toLocaleString('id-ID')}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenDepositForStudent(st, 'KAS_MASUK')}
+                              className="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-black"
+                              title="Setor kas untuk ananda ini"
+                            >
+                              Setor
+                            </button>
+                            <button
+                              onClick={() => setSelectedStudentDetail(st)}
+                              className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold"
+                              title="Lihat riwayat"
+                            >
+                              Detail
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 4. SINKRONISASI DATABASE & ALAT CADANGAN */}
+            <div className="bg-white rounded-3xl p-4 md:p-6 border-2 border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center font-bold">
+                    <Database className="w-5 h-5 text-slate-700" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm md:text-base">
+                      4. Sinkronisasi Database & Cadangan (Backup Data)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Amankan data pembukuan kas 4B secara berkala.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Cadangan Excel (.xlsx)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Unduh file Excel berisi 2 sheet (Buku Kas & Rekap 25 Siswa).
+                  </p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleExportExcel}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Unduh Excel
+                  </motion.button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                    <Send className="w-4 h-4 text-teal-600" />
+                    <span>Laporan WhatsApp Grup</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Buka template pesan resmi grup WhatsApp dengan contreng lunas.
+                  </p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsWaModalOpen(true)}
+                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Buka Format WA
+                  </motion.button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                    <Key className="w-4 h-4 text-purple-600" />
+                    <span>Keamanan PIN Pengurus</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Ubah kode PIN untuk akses fitur bendahara dan hapus transaksi.
+                  </p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsPinModalOpen(true)}
+                    className="w-full bg-purple-700 hover:bg-purple-800 text-white font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1"
+                  >
+                    <Key className="w-3.5 h-3.5" /> Ubah PIN Bendahara
+                  </motion.button>
                 </div>
               </div>
             </div>
@@ -2048,9 +2820,9 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm md:text-base">
-                    Rekening Kas & THR 4 B Bilal Bin Rabah
+                    Rekening Kas & Uang Kadeudeuh 4 B Bilal Bin Rabah
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Tujuan transfer uang kas & THR</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Tujuan transfer uang kas & Uang Kadeudeuh</p>
                 </div>
               </div>
 
@@ -2077,7 +2849,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
               <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div className="font-black text-amber-900">💡 Catatan untuk Bunda:</div>
                 <p className="mt-0.5 leading-relaxed text-[11px]">
-                  Setelah transfer, Bunda tinggal klik tombol kuning <strong>"SETOR KAS / THR"</strong>, pilih nama ananda, dan tekan simpan. Praktis & selesai dalam 5 detik!
+                  Setelah transfer, Bunda tinggal klik tombol kuning <strong>"SETOR KAS / KADEUDEUH"</strong>, pilih nama ananda, dan tekan simpan. Praktis & selesai dalam 5 detik!
                 </p>
               </div>
             </div>
@@ -2115,7 +2887,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <div>
                     <div className="font-black text-slate-900">Tinggal Klik & Submit</div>
                     <p className="text-slate-500 text-[11px] mt-0.5">
-                      Klik <strong>"Setor Kas"</strong> di kartu anak, pilih nominal instan (Rp 50rb, 100rb, atau 200rb), lalu klik <strong>"Simpan Pembayaran"</strong>.
+                      Klik <strong>"Setor Kas"</strong> di kartu anak, pilih nominal instan (Rp 30rb, 60rb, 90rb, dst), lalu klik <strong>"Simpan Pembayaran"</strong>.
                     </p>
                   </div>
                 </div>
@@ -2168,7 +2940,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         <footer className="mt-10 mb-24 md:mb-8 py-6 border-t border-teal-100/70 text-center space-y-1.5 no-print">
           <div className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Buku Kas & Uang THR Kelas 4 B Bilal Bin Rabah • SD Islam 2026/2027</span>
+            <span>Buku Kas & Uang Kadeudeuh Kelas 4 B Bilal Bin Rabah • SD Islam 2026/2027</span>
           </div>
           <div className="text-[11px] font-mono font-bold text-teal-800 tracking-wider">
             MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA
@@ -2203,7 +2975,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   Selamat Datang Bunda & Mama! 💖
                 </h3>
                 <p className="text-xs text-slate-500 font-semibold">
-                  Aplikasi Kas & THR Murid Kelas 4 B Bilal Bin Rabah (2026–2027)
+                  Aplikasi Kas & Uang Kadeudeuh Murid Kelas 4 B Bilal Bin Rabah (2026–2027)
                 </p>
               </div>
 
@@ -2261,7 +3033,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                       />
                     </div>
 
-                    {/* CUSTOM VISUAL GRID OF 25 STUDENTS */}
+                    {/* CUSTOM VISUAL GRID OF 25 STUDENTS WITH PAID NOMINAL BREAKDOWN */}
                     <div className="max-h-[220px] overflow-y-auto space-y-1.5 p-1 border rounded-xl border-slate-200 bg-slate-50/50">
                       {students
                         .filter(
@@ -2273,13 +3045,14 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                         )
                         .map((s) => {
                           const isSelected = String(loginSelectedStudentId) === String(s.id);
+                          const stPay = studentPaymentStatus.find((item) => item.id === s.id);
                           return (
                             <motion.button
                               key={s.id}
                               type="button"
                               whileTap={{ scale: 0.98 }}
                               onClick={() => setLoginSelectedStudentId(String(s.id))}
-                              className={`w-full p-2 rounded-xl flex items-center justify-between text-left transition-all border ${
+                              className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-all border ${
                                 isSelected
                                   ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
                                   : 'bg-white text-slate-800 border-slate-200 hover:border-teal-300'
@@ -2306,7 +3079,20 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                                   </div>
                                 </div>
                               </div>
-                              {isSelected && <Check className="w-4 h-4 stroke-[3] shrink-0 text-white ml-2" />}
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right flex flex-col items-end">
+                                  <div className={`text-[10px] font-black leading-tight ${isSelected ? 'text-teal-100' : 'text-slate-700'}`}>
+                                    Kas: Rp {((stPay?.totalKasPaid || 0) / 1000).toFixed(0)}k
+                                    {stPay?.kasLunas && <span className="ml-1 text-emerald-400 font-bold">✓</span>}
+                                  </div>
+                                  <div className={`text-[10px] font-black leading-tight ${isSelected ? 'text-amber-200' : 'text-amber-800'}`}>
+                                    Kadeudeuh: Rp {((stPay?.totalThrPaid || 0) / 1000).toFixed(0)}k
+                                    {stPay?.thrLunas && <span className="ml-1 text-emerald-400 font-bold">✓</span>}
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 stroke-[3] shrink-0 text-white" />}
+                              </div>
                             </motion.button>
                           );
                         })}
@@ -2395,7 +3181,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 <div>
                   <span className="badge badge-success text-[11px]">Formulir Cepat</span>
                   <h3 className="text-lg md:text-xl font-black text-slate-900 mt-0.5">
-                    Catat Setoran Kas / THR 💰
+                    Catat Setoran Kas / Uang Kadeudeuh 💰
                   </h3>
                 </div>
                 <button
@@ -2483,7 +3269,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                                   setDepositForm({
                                     ...depositForm,
                                     studentId: String(s.id),
-                                    note: `Setoran kas/THR ananda ${s.nickname}`,
+                                    note: `Setoran kas/kadeudeuh ananda ${s.nickname}`,
                                     customStudentName: `${s.fullName} (${s.nickname})`,
                                   });
                                   setIsSelectingStudentInModal(false);
@@ -2533,7 +3319,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     <button
                       type="button"
                       onClick={() =>
-                        setDepositForm({ ...depositForm, category: 'KAS_MASUK', amount: 200000 })
+                        setDepositForm({ ...depositForm, category: 'KAS_MASUK', amount: nominalSettings.kasMonthlyFee })
                       }
                       className={`p-2.5 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
                         depositForm.category === 'KAS_MASUK'
@@ -2547,7 +3333,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     <button
                       type="button"
                       onClick={() =>
-                        setDepositForm({ ...depositForm, category: 'THR_MASUK', amount: 100000 })
+                        setDepositForm({ ...depositForm, category: 'THR_MASUK', amount: nominalSettings.targetKadeudeuhPerStudent })
                       }
                       className={`p-2.5 rounded-xl font-black text-xs md:text-sm border-2 transition-all flex items-center justify-center gap-1.5 ${
                         depositForm.category === 'THR_MASUK'
@@ -2555,27 +3341,50 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                           : 'border-slate-200 bg-white text-slate-600'
                       }`}
                     >
-                      <Gift className="w-4 h-4 text-amber-700" /> Uang THR
+                      <Gift className="w-4 h-4 text-amber-700" /> Uang Kadeudeuh
                     </button>
                   </div>
                 </div>
 
-                {/* 3. Tombol Cepat Nominal */}
+                {/* 3. Tombol Cepat Nominal (Kelipatan Rp 30.000) */}
                 <div>
-                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                    3. Pilih Nominal (Tinggal Klik) *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    {[50000, 100000, 200000].map((nom) => (
-                      <button
-                        key={nom}
-                        type="button"
-                        onClick={() => setDepositForm({ ...depositForm, amount: nom })}
-                        className={`chip-btn ${depositForm.amount === nom ? 'active' : ''}`}
-                      >
-                        Rp {(nom / 1000).toFixed(0)} Ribu
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                      3. Pilih Nominal (Tinggal Klik) *
+                    </label>
+                    <span className="text-[10px] font-bold text-teal-700">
+                      {depositForm.category === 'KAS_MASUK' ? 'Kelipatan Rp 30.000' : 'Sesuai Target'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
+                    {depositForm.category === 'KAS_MASUK'
+                      ? [
+                          nominalSettings.kasMonthlyFee,
+                          nominalSettings.kasMonthlyFee * 2,
+                          nominalSettings.kasMonthlyFee * 3,
+                          nominalSettings.kasMonthlyFee * 5,
+                          nominalSettings.targetKasPerStudent,
+                        ].map((nom) => (
+                          <button
+                            key={nom}
+                            type="button"
+                            onClick={() => setDepositForm({ ...depositForm, amount: nom })}
+                            className={`chip-btn ${depositForm.amount === nom ? 'active' : ''}`}
+                          >
+                            Rp {(nom / 1000).toFixed(0)}k
+                          </button>
+                        ))
+                      : [50000, nominalSettings.targetKadeudeuhPerStudent, 150000].map((nom) => (
+                          <button
+                            key={nom}
+                            type="button"
+                            onClick={() => setDepositForm({ ...depositForm, amount: nom })}
+                            className={`chip-btn ${depositForm.amount === nom ? 'active' : ''}`}
+                          >
+                            Rp {(nom / 1000).toFixed(0)}k
+                          </button>
+                        ))}
                   </div>
 
                   <div className="relative">
@@ -2773,15 +3582,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     <span className="text-[10px] font-bold text-rose-600">Sentuh untuk memilih</span>
                   </label>
                   <div className="grid grid-cols-2 gap-1.5 max-h-[160px] overflow-y-auto p-1.5 border rounded-2xl border-slate-200 bg-slate-50/60">
-                    {[
-                      { id: 'Tanda Kasih Sakit/Duka', label: 'Tanda Kasih Sakit/Duka', icon: '🩺', price: 150000 },
-                      { id: 'Acara & Konsumsi Hari Guru', label: 'Acara Hari Guru', icon: '👩‍🏫', price: 200000 },
-                      { id: 'Konsumsi & Snack Murid', label: 'Snack Murid', icon: '🧃', price: 100000 },
-                      { id: 'Souvenir & Hadiah Murid/Guru', label: 'Souvenir & Hadiah', icon: '🎁', price: 150000 },
-                      { id: 'Perlengkapan Kelas & Pensi', label: 'Pensi & Kelas', icon: '🎨', price: 100000 },
-                      { id: 'Setoran THR ke POMG', label: 'Setor THR POMG', icon: '🕌', price: 2000000 },
-                      { id: 'Lain-lain', label: 'Biaya Lain-lain', icon: '📦', price: 50000 },
-                    ].map((cat) => {
+                    {expenseCategories.map((cat) => {
                       const isSelected = expenseForm.expenseCategory === cat.id;
                       return (
                         <motion.button
@@ -3199,7 +4000,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <span className="col-span-2 font-black text-teal-950">
                     {currentReceipt.category === 'KAS_MASUK'
                       ? 'Iuran Kas Rutin 4 B Bilal Bin Rabah'
-                      : 'Iuran Uang THR Idul Fitri Guru & Karyawan'}
+                      : 'Iuran Uang Kadeudeuh Guru & Karyawan'}
                   </span>
                 </div>
 
@@ -3335,25 +4136,25 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   </div>
                   <div className="mt-1">
                     {selectedStudentDetail.kasLunas ? (
-                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp 200rb)</span>
+                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp {nominalSettings.targetKasPerStudent.toLocaleString('id-ID')})</span>
                     ) : (
-                      <span className="badge badge-warning text-[10px]">Kurang Rp {(200000 - selectedStudentDetail.totalKasPaid).toLocaleString('id-ID')}</span>
+                      <span className="badge badge-warning text-[10px]">Kurang Rp {(nominalSettings.targetKasPerStudent - selectedStudentDetail.totalKasPaid).toLocaleString('id-ID')}</span>
                     )}
                   </div>
                 </div>
 
                 <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200">
                   <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-                    Uang THR Lebaran
+                    Uang Kadeudeuh
                   </div>
                   <div className="text-base font-black text-amber-950 mt-0.5">
                     Rp {selectedStudentDetail.totalThrPaid.toLocaleString('id-ID')}
                   </div>
                   <div className="mt-1">
                     {selectedStudentDetail.thrLunas ? (
-                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp 100rb)</span>
+                      <span className="badge badge-success text-[10px]">LUNAS (Min Rp {nominalSettings.targetKadeudeuhPerStudent.toLocaleString('id-ID')})</span>
                     ) : (
-                      <span className="badge badge-warning text-[10px]">Kurang Rp {(100000 - selectedStudentDetail.totalThrPaid).toLocaleString('id-ID')}</span>
+                      <span className="badge badge-warning text-[10px]">Kurang Rp {(nominalSettings.targetKadeudeuhPerStudent - selectedStudentDetail.totalThrPaid).toLocaleString('id-ID')}</span>
                     )}
                   </div>
                 </div>
@@ -3385,7 +4186,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                         >
                           <div className="min-w-0">
                             <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                              <span>{tx.category === 'KAS_MASUK' ? 'Kas Rutin' : 'Uang THR'}</span>
+                              <span>{tx.category === 'KAS_MASUK' ? 'Kas Rutin' : 'Uang Kadeudeuh'}</span>
                               <span className="font-mono text-emerald-700">Rp {tx.amount.toLocaleString('id-ID')}</span>
                             </div>
                             <div className="text-[10px] text-slate-500">
@@ -3450,7 +4251,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                       }}
                       className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
                     >
-                      <Gift className="w-3.5 h-3.5" /> Setor THR
+                      <Gift className="w-3.5 h-3.5" /> Setor Kadeudeuh
                     </motion.button>
                   </>
                 ) : (
@@ -3682,12 +4483,20 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         </button>
 
         <button
+          onClick={() => setActiveTab('ledger')}
+          className={`bottom-tab-item ${activeTab === 'ledger' ? 'active' : ''}`}
+        >
+          <BookOpen />
+          <span>Buku Kas</span>
+        </button>
+
+        <button
           onClick={() => {
             const prefillStudentId = currentMamaStudent ? String(currentMamaStudent.id) : '';
             setDepositForm({
               studentId: prefillStudentId,
               category: 'KAS_MASUK',
-              amount: 200000,
+              amount: nominalSettings.kasMonthlyFee,
               date: new Date().toISOString().split('T')[0],
               paymentMethod: 'Transfer Mandiri',
               note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
@@ -3710,19 +4519,11 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         </button>
 
         <button
-          onClick={() => setActiveTab('ledger')}
-          className={`bottom-tab-item ${activeTab === 'ledger' ? 'active' : ''}`}
+          onClick={() => setActiveTab('datacenter')}
+          className={`bottom-tab-item ${activeTab === 'datacenter' ? 'active' : ''}`}
         >
-          <BookOpen />
-          <span>Buku Kas</span>
-        </button>
-
-        <button
-          onClick={handleExportExcel}
-          className="bottom-tab-item text-emerald-700"
-        >
-          <Download />
-          <span>Excel</span>
+          <Database />
+          <span>Data Center</span>
         </button>
 
         <button

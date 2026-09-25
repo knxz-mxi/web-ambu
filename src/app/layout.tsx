@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kas & THR 4 B Bilal Bin Rabah (2026/2027)',
-  description: 'Aplikasi pencatatan dan transparansi kas kelas & uang THR khusus wali murid dan pengurus Kelas 4 B Bilal Bin Rabah. Mudah digunakan di HP, tinggal submit!',
+  title: 'Kas & Uang Kadeudeuh 4 B Bilal Bin Rabah (2026/2027)',
+  description: 'Aplikasi pencatatan dan transparansi kas kelas & uang kadeudeuh khusus wali murid dan pengurus Kelas 4 B Bilal Bin Rabah. Mudah digunakan di HP, tinggal submit!',
   manifest: '/manifest.json',
   icons: {
     icon: '/logo.png',

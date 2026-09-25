@@ -57,8 +57,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Protect Admin-only transactions (Pengeluaran Kas / THR Keluar)
-    const isExpense = body.category === 'PENGELUARAN' || body.category === 'THR_KELUAR';
+    // Normalize KADEUDEUH category to database category
+    let finalCategory = body.category;
+    if (finalCategory === 'KADEUDEUH_MASUK') finalCategory = 'THR_MASUK';
+    if (finalCategory === 'KADEUDEUH_KELUAR') finalCategory = 'THR_KELUAR';
+
+    // 2. Protect Admin-only transactions (Pengeluaran Kas / Kadeudeuh Keluar)
+    const isExpense = finalCategory === 'PENGELUARAN' || finalCategory === 'THR_KELUAR';
     if (isExpense) {
       const pinHeader = request.headers.get('x-admin-pin');
       if (!verifyAdminPin(pinHeader)) {
@@ -117,7 +122,7 @@ export async function POST(request: Request) {
 
     const newTx = await createTransaction({
       date: dateStr,
-      category: body.category,
+      category: finalCategory,
       type,
       studentId,
       studentName,
