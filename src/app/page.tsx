@@ -125,7 +125,7 @@ export default function HomePage() {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isWaModalOpen, setIsWaModalOpen] = useState(false);
-  const [waFormatTab, setWaFormatTab] = useState<'CONTRENG' | 'LENGKAP'>('CONTRENG');
+  const [waFormatTab, setWaFormatTab] = useState<'CONTRENG_KAS' | 'CONTRENG_KADEUDEUH' | 'LENGKAP'>('CONTRENG_KAS');
   const [copiedWa, setCopiedWa] = useState(false);
   const [copiedRek, setCopiedRek] = useState(false);
 
@@ -192,13 +192,13 @@ export default function HomePage() {
     { id: 'Lain-lain', label: 'Biaya Lain-lain', icon: '📦', price: 50000 },
   ]);
 
-  // Form State: Setor (Deposit) - Default kelipatan 30 rb
+  // Form State: Setor (Deposit) - Default kelipatan 30 rb & Bank BNI
   const [depositForm, setDepositForm] = useState({
     studentId: '',
     category: 'KAS_MASUK' as 'KAS_MASUK' | 'THR_MASUK',
     amount: DEFAULT_NOMINAL_SETTINGS.kasMonthlyFee,
     date: new Date().toISOString().split('T')[0],
-    paymentMethod: 'Transfer Mandiri',
+    paymentMethod: 'Transfer BNI',
     note: '',
     customStudentName: '',
     proofImage: null as string | null,
@@ -207,7 +207,10 @@ export default function HomePage() {
   const [isSelectingStudentInModal, setIsSelectingStudentInModal] = useState(false);
 
   // Image Upload with Client-Side Canvas Compression (< 250KB)
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'deposit' | 'expense' = 'deposit'
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -239,13 +242,19 @@ export default function HomePage() {
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.72);
-          setDepositForm((prev) => ({ ...prev, proofImage: compressedBase64 }));
-          showToast('Foto bukti transfer berhasil dipilih! 📸', 'success');
+          if (target === 'deposit') {
+            setDepositForm((prev) => ({ ...prev, proofImage: compressedBase64 }));
+            showToast('Foto bukti transfer berhasil dipilih! 📸', 'success');
+          } else {
+            setExpenseForm((prev) => ({ ...prev, proofImage: compressedBase64 }));
+            showToast('Foto nota/struk belanja berhasil dipilih! 📸', 'success');
+          }
         }
       };
       img.src = readerEvent.target?.result as string;
     };
     reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input so same file can be re-selected if deleted
   };
 
   // Form State: Pengeluaran (Expense) - Default Kostum Angkatan
@@ -259,6 +268,7 @@ export default function HomePage() {
     date: new Date().toISOString().split('T')[0],
     pic: 'Mama Athalla (Bendahara)',
     note: 'Struk / Bukti Terlampir',
+    proofImage: null as string | null,
   });
 
   // Save & Sync Nominal Settings for Admin
@@ -420,7 +430,7 @@ export default function HomePage() {
     student: { fullName: string; nickname: string; no: number },
     category: 'KAS_MASUK' | 'THR_MASUK',
     amount: number,
-    paymentMethod: string = 'Transfer Bank Mandiri',
+    paymentMethod: string = 'Transfer Bank BNI',
     note: string = 'Lunas Terverifikasi'
   ) => {
     const today = new Date().toLocaleDateString('id-ID', {
@@ -734,7 +744,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
       category,
       amount: isKas ? nominalSettings.kasMonthlyFee : nominalSettings.targetKadeudeuhPerStudent,
       date: new Date().toISOString().split('T')[0],
-      paymentMethod: 'Transfer Mandiri',
+      paymentMethod: 'Transfer BNI',
       note: `Setoran ${isKas ? 'kas' : 'uang kadeudeuh'} ananda ${student.nickname}`,
       customStudentName: `${student.fullName} (${student.nickname})`,
       proofImage: null,
@@ -836,11 +846,13 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
           paymentMethod: 'Transfer',
           pic: expenseForm.pic,
           note: expenseForm.note,
+          proofImage: expenseForm.proofImage || null,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
+        setExpenseForm((prev) => ({ ...prev, proofImage: null }));
         setIsExpenseModalOpen(false);
         showToast(`Pengeluaran kas berhasil dicatat! 📝`, 'success');
         fetchData();
@@ -909,6 +921,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         'Total Kadeudeuh Dibayar (Rp)': s.totalThrPaid,
         'Target Kadeudeuh (Rp)': nominalSettings.targetKadeudeuhPerStudent,
         'Status Kadeudeuh': s.thrLunas ? 'LUNAS' : s.thrBertahap ? 'BERTAHAP' : 'BELUM',
+        'Total Keseluruhan Dibayar (Rp)': s.totalKasPaid + s.totalThrPaid,
       }));
 
       const wb = XLSX.utils.book_new();
@@ -1016,8 +1029,48 @@ _Terima kasih atas kerja sama dan dukungannya Bunda/Mama semua._ 💐
 Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
   }, [studentPaymentStatus, stats, nominalSettings]);
 
+  // Generate WhatsApp Contreng Message untuk Uang Kadeudeuh Guru & Karyawan
+  const waKadeudeuhContrengText = useMemo(() => {
+    const lines = studentPaymentStatus.map((s) => {
+      let mark = '';
+      if (s.thrLunas) {
+        mark = s.lastThrDateFormatted ? `✅${s.lastThrDateFormatted}` : '✅';
+      } else if (s.thrBertahap) {
+        const nominalK = s.totalThrPaid >= 1000 ? (s.totalThrPaid / 1000).toFixed(0) : String(s.totalThrPaid);
+        mark = s.lastThrDateFormatted ? `👍🏻${s.lastThrDateFormatted}. Rp.${nominalK}` : `👍🏻 Rp.${nominalK}`;
+      }
+      return `${s.no}. Mama ${s.nickname}${mark}`;
+    });
+
+    const lunasCount = studentPaymentStatus.filter((s) => s.thrLunas).length;
+    const bertahapCount = studentPaymentStatus.filter((s) => s.thrBertahap).length;
+
+    return `*LAPORAN UANG KADEUDEUH GURU & KARYAWAN. KELAS 4 B BILAL BIN RABAH*
+*PERIODE 2026/2027*
+
+*BNI. NO.REKENING. 2102403976. a/n Nia Mulyawati*
+
+${lines.join('\n')}
+
+✅: *Lunas* (${lunasCount} Anak)
+👍🏻: *Bertahap* (${bertahapCount} Anak)
+
+━━━━━━━━━━━━━━━━━━━━
+🎁 *Total Uang Kadeudeuh Terkumpul:* Rp ${stats.totalThrMasuk.toLocaleString('id-ID')}
+💳 *BNI:* 2102403976 (Nia Mulyawati)
+Konfirmasi setor: Silakan submit di web / kirim bukti ya Bunda 🙏
+
+Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XPLORASI INDONESIA`;
+  }, [studentPaymentStatus, stats]);
+
+  const getCurrentWaText = () => {
+    if (waFormatTab === 'CONTRENG_KAS') return waContrengText;
+    if (waFormatTab === 'CONTRENG_KADEUDEUH') return waKadeudeuhContrengText;
+    return waReportText;
+  };
+
   const copyCurrentWaMessage = () => {
-    const textToCopy = waFormatTab === 'CONTRENG' ? waContrengText : waReportText;
+    const textToCopy = getCurrentWaText();
     navigator.clipboard.writeText(textToCopy);
     setCopiedWa(true);
     showToast('Pesan WhatsApp berhasil disalin! 📲', 'success');
@@ -1255,11 +1308,15 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                 <span>Setor untuk {currentMamaStudent.nickname}</span>
               </motion.button>
               <button
-                onClick={handleLogout}
-                className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-2 rounded-lg"
-                title="Bukan Mama ini? Klik untuk ganti"
+                onClick={() => {
+                  handleLogout();
+                  setIsLoginModalOpen(true);
+                }}
+                className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-rose-300 hover:bg-rose-50 transition-all flex items-center gap-1 shrink-0"
+                title="Bukan Mama ini? Klik untuk ganti ananda"
               >
-                Ganti
+                <span>🔄</span>
+                <span>Ganti</span>
               </button>
             </div>
           </motion.div>
@@ -1408,17 +1465,21 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                             <button
                               type="button"
                               onClick={() => setSelectedStudentDetail(s)}
-                              className="flex-1 py-1 rounded-lg text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 text-center"
+                              className={`py-1 rounded-lg text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 text-center ${
+                                currentMamaStudent && !isMyChild ? 'w-full' : 'flex-1'
+                              }`}
                             >
-                              Detail
+                              Detail / Riwayat 📋
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
-                              className="flex-1 py-1 rounded-lg text-[10px] font-black text-white bg-teal-600 hover:bg-teal-700 text-center shadow-xs"
-                            >
-                              Setor Kas
-                            </button>
+                            {(!currentMamaStudent || isMyChild) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDepositForStudent(s, 'KAS_MASUK')}
+                                className="flex-1 py-1 rounded-lg text-[10px] font-black text-white bg-teal-600 hover:bg-teal-700 text-center shadow-xs"
+                              >
+                                Setor Kas 💳
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -1555,7 +1616,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                     category: 'KAS_MASUK',
                     amount: nominalSettings.kasMonthlyFee,
                     date: new Date().toISOString().split('T')[0],
-                    paymentMethod: 'Transfer Mandiri',
+                    paymentMethod: 'Transfer BNI',
                     note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
                     customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
                     proofImage: null,
@@ -1587,6 +1648,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                       date: new Date().toISOString().split('T')[0],
                       pic: 'Mama Athalla (Bendahara)',
                       note: 'Struk / Bukti Terlampir',
+                      proofImage: null,
                     });
                     setIsExpenseModalOpen(true);
                   }}
@@ -1600,7 +1662,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
           </div>
         </motion.section>
 
-        {/* REKENING MANDIRI CARD */}
+        {/* REKENING BNI CARD */}
         <motion.section
           whileHover={{ y: -2 }}
           className="bg-white rounded-2xl p-3 md:p-3.5 border-2 border-teal-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5"
@@ -2184,7 +2246,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                                     st || { fullName: tx.studentName || 'Wali Murid Kelas 4B', nickname: tx.studentName || 'Murid 4B', no: 0 },
                                     tx.category as 'KAS_MASUK' | 'THR_MASUK',
                                     tx.amount,
-                                    tx.paymentMethod || 'Transfer Mandiri',
+                                    tx.paymentMethod || 'Transfer BNI',
                                     tx.note || 'Lunas Terverifikasi'
                                   );
                                 }}
@@ -3428,11 +3490,12 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {[
-                        { id: 'Transfer Mandiri', label: 'Bank Mandiri', sub: 'Kas Utama (127..)', badge: 'Mandiri', color: 'border-blue-500 bg-blue-50/80 text-blue-950', badgeColor: 'bg-blue-600 text-white' },
+                        { id: 'Transfer BNI', label: 'Bank BNI (Resmi)', sub: '2102403976 a/n Nia', badge: '⭐ BNI Utama', color: 'border-amber-500 bg-amber-50/80 text-amber-950', badgeColor: 'bg-amber-600 text-white' },
                         { id: 'Transfer BCA', label: 'Bank BCA', sub: 'Antar Bank', badge: 'BCA', color: 'border-indigo-500 bg-indigo-50/80 text-indigo-950', badgeColor: 'bg-indigo-600 text-white' },
+                        { id: 'Transfer Mandiri', label: 'Bank Mandiri', sub: 'Antar Bank', badge: 'Mandiri', color: 'border-blue-500 bg-blue-50/80 text-blue-950', badgeColor: 'bg-blue-600 text-white' },
                         { id: 'Transfer BRI', label: 'Bank BRI', sub: 'Antar Bank', badge: 'BRI', color: 'border-cyan-500 bg-cyan-50/80 text-cyan-950', badgeColor: 'bg-cyan-600 text-white' },
                         { id: 'Tunai', label: 'Tunai / Cash', sub: 'Titip Langsung', badge: '💵 Tunai', color: 'border-emerald-500 bg-emerald-50/80 text-emerald-950', badgeColor: 'bg-emerald-600 text-white' },
-                        { id: 'Lainnya', label: 'E-Wallet / QRIS', sub: 'Gopay / OVO', badge: '📱 E-Wallet', color: 'border-purple-500 bg-purple-50/80 text-purple-950', badgeColor: 'bg-purple-600 text-white' },
+                        { id: 'Lainnya', label: 'E-Wallet / QRIS', sub: 'Gopay / OVO / Dana', badge: '📱 E-Wallet', color: 'border-purple-500 bg-purple-50/80 text-purple-950', badgeColor: 'bg-purple-600 text-white' },
                       ].map((item) => {
                         const isSelected = depositForm.paymentMethod === item.id;
                         return (
@@ -3526,7 +3589,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   </label>
                   <input
                     type="text"
-                    placeholder="Misal: Trf Mandiri an Bunda..."
+                    placeholder="Misal: Trf BNI / Tunai an Bunda..."
                     value={depositForm.note}
                     onChange={(e) => setDepositForm({ ...depositForm, note: e.target.value })}
                     className="w-full p-2.5 rounded-xl border-2 border-slate-200 font-medium text-slate-800 text-xs"
@@ -3727,6 +3790,63 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   </div>
                 </div>
 
+                {/* Upload Foto Nota / Struk Pembelian */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Foto Nota / Struk Pembelian (Opsional)</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-rose-700">🧾 Bukti Belanja</span>
+                  </label>
+
+                  {expenseForm.proofImage ? (
+                    <div className="rounded-2xl border-2 border-rose-400 bg-rose-50/50 p-2.5 flex items-center gap-3">
+                      <img
+                        src={expenseForm.proofImage}
+                        alt="Nota Belanja"
+                        onClick={() => setPreviewImage(expenseForm.proofImage)}
+                        className="w-16 h-16 object-cover rounded-xl border-2 border-white shadow-md cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                        title="Klik untuk melihat foto penuh"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-black text-rose-950 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-rose-600 stroke-[2.5]" />
+                          <span>Foto Nota Terlampir!</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Sentuh gambar untuk memperbesar
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpenseForm((prev) => ({ ...prev, proofImage: null }))}
+                        className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-[11px] font-black flex items-center gap-1 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" /> Hapus
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/30 hover:bg-rose-50/60 rounded-2xl p-3 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'expense')}
+                        className="hidden"
+                      />
+                      <div className="w-9 h-9 rounded-full bg-white shadow-sm flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform mb-1 border border-rose-200">
+                        <Camera className="w-4 h-4 stroke-[2.5]" />
+                      </div>
+                      <div className="text-xs font-black text-rose-950 text-center">
+                        Sentuh di Sini untuk Foto Nota / Bon Belanja 📸
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 text-center">
+                        Bisa foto bon fisik langsung lewat kamera HP atau ambil dari galeri
+                      </div>
+                    </label>
+                  )}
+                </div>
+
                 <div className="pt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -3774,35 +3894,48 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
               </div>
 
               {/* Format Tabs Switcher */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mt-3 text-xs font-black">
+              <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-xl mt-3 text-xs font-black">
                 <button
                   type="button"
-                  onClick={() => setWaFormatTab('CONTRENG')}
-                  className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                    waFormatTab === 'CONTRENG'
+                  onClick={() => setWaFormatTab('CONTRENG_KAS')}
+                  className={`py-2 px-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-center ${
+                    waFormatTab === 'CONTRENG_KAS'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <span>✅ & 👍🏻 Contreng Grup</span>
-                  <span className="text-[9px] bg-white/20 px-1 rounded">Favorit</span>
+                  <span className="truncate">✅ Contreng Kas</span>
+                  <span className={`text-[8px] px-1 rounded ${waFormatTab === 'CONTRENG_KAS' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>Favorit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWaFormatTab('CONTRENG_KADEUDEUH')}
+                  className={`py-2 px-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-center ${
+                    waFormatTab === 'CONTRENG_KADEUDEUH'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="truncate">🎁 Kadeudeuh</span>
+                  <span className={`text-[8px] px-1 rounded ${waFormatTab === 'CONTRENG_KADEUDEUH' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>Guru</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setWaFormatTab('LENGKAP')}
-                  className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  className={`py-2 px-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-center ${
                     waFormatTab === 'LENGKAP'
                       ? 'bg-teal-700 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <span>📊 Laporan Rinci Saldo</span>
+                  <span className="truncate">📊 Laporan</span>
+                  <span className={`text-[8px] px-1 rounded ${waFormatTab === 'LENGKAP' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>Saldo</span>
                 </button>
               </div>
 
               <div className="pt-2.5 space-y-2.5">
                 <div className="bg-slate-950 text-emerald-300 p-3.5 rounded-2xl font-mono text-xs max-h-[280px] overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner border border-slate-800">
-                  {waFormatTab === 'CONTRENG' ? waContrengText : waReportText}
+                  {getCurrentWaText()}
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
@@ -3831,8 +3964,9 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => {
-                      const msg = waFormatTab === 'CONTRENG' ? waContrengText : waReportText;
-                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+                      const msg = getCurrentWaText();
+                      const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                      window.open(url, '_blank');
                     }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs md:text-sm shadow-md shadow-emerald-700/25"
                   >
@@ -3957,7 +4091,9 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                       4 B BILAL BIN RABAH • PERIODE MEI 2026–2027
                     </div>
                     <h3 className="font-black text-slate-900 text-sm md:text-base leading-tight">
-                      KUITANSI RESMI KAS 4 B BILAL BIN RABAH
+                      {currentReceipt.category === 'KAS_MASUK'
+                        ? 'KUITANSI RESMI IURAN KAS KELAS'
+                        : 'KUITANSI RESMI UANG KADEUDEUH'}
                     </h3>
                     <div className="text-[10px] font-mono text-slate-500 font-bold">
                       No: {currentReceipt.receiptNo}
@@ -4083,6 +4219,16 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   <span>{copiedReceipt ? 'TERSALIN' : 'SALIN TEKS'}</span>
                 </motion.button>
               </div>
+
+              <div className="pt-2 no-print">
+                <button
+                  type="button"
+                  onClick={() => setCurrentReceipt(null)}
+                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  ✕ Tutup Kuitansi
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -4190,7 +4336,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                               <span className="font-mono text-emerald-700">Rp {tx.amount.toLocaleString('id-ID')}</span>
                             </div>
                             <div className="text-[10px] text-slate-500">
-                              {tx.date} • via {tx.paymentMethod || 'Mandiri'}
+                              {tx.date} • via {tx.paymentMethod || 'BNI'}
                             </div>
                           </div>
 
@@ -4210,7 +4356,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                                   selectedStudentDetail,
                                   tx.category as 'KAS_MASUK' | 'THR_MASUK',
                                   tx.amount,
-                                  tx.paymentMethod || 'Transfer Mandiri',
+                                  tx.paymentMethod || 'Transfer BNI',
                                   tx.note || 'Lunas Terverifikasi'
                                 );
                               }}
@@ -4498,7 +4644,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
               category: 'KAS_MASUK',
               amount: nominalSettings.kasMonthlyFee,
               date: new Date().toISOString().split('T')[0],
-              paymentMethod: 'Transfer Mandiri',
+              paymentMethod: 'Transfer BNI',
               note: currentMamaStudent ? `Setoran kas ananda ${currentMamaStudent.nickname}` : '',
               customStudentName: currentMamaStudent ? `${currentMamaStudent.fullName} (${currentMamaStudent.nickname})` : '',
               proofImage: null,

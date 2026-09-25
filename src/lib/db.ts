@@ -154,6 +154,7 @@ export async function getTransactions(): Promise<AppTransaction[]> {
         paymentMethod: t.paymentMethod,
         pic: t.pic,
         note: t.note,
+        proofImage: t.proofImage || null,
         createdAt: t.createdAt.toISOString(),
       }));
     } catch (e) {
