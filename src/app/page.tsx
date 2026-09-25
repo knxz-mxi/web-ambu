@@ -309,9 +309,16 @@ export default function HomePage() {
 
     const savedRole = localStorage.getItem('ambu_user_role');
     const savedStudentId = localStorage.getItem('ambu_student_id');
+    const savedPinTime = localStorage.getItem('ambu_admin_pin_time');
+    const isPinExpired = savedPinTime && Date.now() - Number(savedPinTime) > 30 * 60 * 1000;
 
-    if (savedRole === 'BENDAHARA') {
+    if (savedRole === 'BENDAHARA' && !isPinExpired) {
       setUserRole('BENDAHARA');
+    } else if (savedRole === 'BENDAHARA' && isPinExpired) {
+      localStorage.removeItem('ambu_user_role');
+      localStorage.removeItem('ambu_admin_pin_time');
+      setUserRole('GUEST');
+      setIsLoginModalOpen(true);
     } else if (savedRole === 'MAMA' && savedStudentId) {
       const found = STUDENTS_KELAS_4B.find((s) => String(s.id) === savedStudentId);
       if (found) {
@@ -401,8 +408,48 @@ export default function HomePage() {
     }
   };
 
+  // Bersihkan Cache Browser & Segarkan Data (Fitur Anti-Bobol & Data Fresh 30 Menit)
+  const handleClearCache = async () => {
+    try {
+      setLoading(true);
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const cacheNames = await window.caches.keys();
+        await Promise.all(cacheNames.map((name) => window.caches.delete(name)));
+      }
+      const [txRes, stRes] = await Promise.all([
+        fetch(`/api/transactions?t=${Date.now()}`),
+        fetch(`/api/students?t=${Date.now()}`),
+      ]);
+      const txData = await txRes.json();
+      const stData = await stRes.json();
+      if (txData.success && Array.isArray(txData.data)) setTransactions(txData.data);
+      if (stData.success && Array.isArray(stData.data) && stData.data.length > 0) setStudents(stData.data);
+      showToast('Alhamdulillah! Cache 30m dibersihkan & data 100% segar kembali! 🍃', 'success');
+    } catch (err: any) {
+      showToast('Gagal menyegarkan: ' + err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+
+    // Auto-fresh & Clear Cache cycle setiap 30 menit (mengurangi risiko pembobolan & menjaga data fresh)
+    const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+    const intervalId = setInterval(() => {
+      console.log('[Security] Menjalankan auto-refresh data & pembersihan sesi 30 menit...');
+      const pinTimestamp = localStorage.getItem('ambu_admin_pin_time');
+      if (pinTimestamp && Date.now() - Number(pinTimestamp) > THIRTY_MINUTES_MS) {
+        localStorage.removeItem('ambu_user_role');
+        localStorage.removeItem('ambu_admin_pin_time');
+        setUserRole('GUEST');
+        showToast('Sesi Bendahara berakhir (30 menit) demi keamanan. Silakan ketik PIN jika ingin akses kembali 🛡️', 'info');
+      }
+      fetchData();
+    }, THIRTY_MINUTES_MS);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Number to Indonesian Words Helper
@@ -565,6 +612,7 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
         setUserRole('BENDAHARA');
         setCurrentMamaStudent(null);
         localStorage.setItem('ambu_user_role', 'BENDAHARA');
+        localStorage.setItem('ambu_admin_pin_time', String(Date.now()));
         localStorage.removeItem('ambu_student_id');
         setIsLoginModalOpen(false);
         setLoginPin('');
@@ -1213,10 +1261,21 @@ Powered by MXI CODES — A Digital & Cloud Service Division by PT KENXZO META XP
                   ? 'bg-amber-100 text-amber-900 border-amber-300'
                   : 'bg-white text-slate-700 border-slate-300'
               }`}
-              title="Perbesar teks"
+              title="Perbesar ukuran huruf untuk kenyamanan membaca"
             >
               <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span className="hidden md:inline">{isBoomerMode ? 'Huruf: Besar' : 'Huruf: Normal'}</span>
+            </motion.button>
+
+            {/* Clear Cache / Refresh 30m Button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleClearCache}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1 shadow-2xs"
+              title="Segarkan Data & Bersihkan Cache 30 Menit"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+              <span className="hidden lg:inline text-[11px]">Segarkan</span>
             </motion.button>
 
             {/* Export Excel Button */}
